@@ -63,33 +63,38 @@ export function TaskFlowBar({ useLedger, seal }: TaskFlowBarProps): ReactElement
   }, [])
 
   // Content avoidance: observe whichever root (mini or banner) is mounted and
-  // publish its height on the frame element; detach clears the property so a
-  // disposed bar never leaves stale padding behind. Callback ref, not an
-  // effect: the observed element changes identity on collapse/expand.
-  const clearanceObserver = useRef<ResizeObserver | null>(null)
-  const clearanceTarget = useRef<HTMLElement | null>(null)
+  // publish its height on the frame element. The ref only records the mounted
+  // element; observe/publish/cleanup live in an effect, because ref-callback
+  // ordering across a root swap is NOT detach-before-attach in every React
+  // runtime — the platform runtime attaches the new root's ref first, so a
+  // ref-held observer gets disconnected by the old root's null call (live
+  // S6 find). Effect cleanup→setup ordering is guaranteed, whoever attaches
+  // first.
+  const [rootEl, setRootEl] = useState<HTMLElement | null>(null)
   const rootRef = useCallback((el: HTMLDivElement | null): void => {
-    clearanceObserver.current?.disconnect()
-    clearanceObserver.current = null
-    if (el === null) {
-      clearanceTarget.current?.style.removeProperty(CLEARANCE_VAR)
-      clearanceTarget.current = null
-      return
-    }
-    const frame = el.closest('[data-shell-overlay]')?.parentElement ?? null
+    // The null call may belong to the previous root after the new one already
+    // registered — ignore it; unmount cleanup is the effect's job.
+    if (el !== null) setRootEl(el)
+  }, [])
+  useEffect(() => {
+    if (rootEl === null) return
+    const frame = rootEl.closest('[data-shell-overlay]')?.parentElement ?? null
     if (frame === null) return
-    clearanceTarget.current = frame
     const publish = (): void => {
-      frame.style.setProperty(CLEARANCE_VAR, `${el.offsetHeight}px`)
+      frame.style.setProperty(CLEARANCE_VAR, `${rootEl.offsetHeight}px`)
     }
     if (typeof ResizeObserver === 'undefined') {
       publish()
-      return
+      return () => { frame.style.removeProperty(CLEARANCE_VAR) }
     }
     // ResizeObserver fires once on observe, covering the initial publish.
-    clearanceObserver.current = new ResizeObserver(publish)
-    clearanceObserver.current.observe(el)
-  }, [])
+    const observer = new ResizeObserver(publish)
+    observer.observe(rootEl)
+    return () => {
+      observer.disconnect()
+      frame.style.removeProperty(CLEARANCE_VAR)
+    }
+  }, [rootEl])
 
   // Real measured column width replaces the CHIP_ROW_W constant for the chip
   // split (manifest §7 flagged it unverified) and gives the strip's label-fit

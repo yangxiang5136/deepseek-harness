@@ -29,10 +29,11 @@ Content avoidance is a one-property contract: the bar publishes its live height 
 - The console gains the see-it/seal-it loop: today's history strip, running chips, and the debts popover whose checkmark writes the audited `done` — while the ledger stays a bus file other surfaces keep appending to with no schema change.
 - 10 s polling is deliberate (no file-watch push channel yet); a read failure keeps the last fold and surfaces the error on the bar rather than freezing.
 - Geometry keeps named approximations: the chip-width formula mirrors CSS constants (150px task cap, 9px source tag) rather than measuring rendered nodes, and hover widths still clamp in `cqw`.
-- Real-composition verification (collapsed/expanded avoidance geometry, hover zero-reflow) is deferred to the live-console acceptance pass; jsdom covers wiring and fold semantics, with the real ledger's month file as a fixture.
+- The avoidance publisher is effect-driven, not ref-driven: live acceptance showed the platform runtime attaches a swapped-in root's ref before the old root's null call, so a ref-held observer would be disconnected by its predecessor — effect cleanup→setup ordering is guaranteed either way. jsdom's runtime orders the calls the other way and cannot catch this.
+- Live acceptance passed (collapsed/expanded avoidance geometry both directions, hover zero-reflow three-state, 10 s refresh with an open popover, the audited seal round-trip against the real ledger); the title popover opens upward — the prototype's downward anchor clipped past the viewport on the bottom-docked bar.
 
 ## Deferred
 
-- Live-console acceptance against spec §6 v3.0 (P2 S6), including an `apps/web` scenario for avoidance geometry.
+- An `apps/web` scenario pinning the avoidance geometry in a real composition (live acceptance covered it manually).
 - Session soft-binding: lane click → jump to the owning session.
 - Queueing actions (out of scope per the spec's action table).

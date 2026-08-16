@@ -1,10 +1,14 @@
 /* Title popover (prototype .tf-badge-pop): the single intake for debts,
-   no-heartbeat lanes, and overflowed running chips. */
+   no-heartbeat lanes, and overflowed running chips. Opens UPWARD from the
+   bar — the prototype's top:36px anchor pushed everything past the second
+   debt below the viewport on a bottom-docked bar (live-acceptance find;
+   the drill-down popovers already open upward for the same reason). */
 
 .pop {
   position: absolute;
-  top: 36px;
+  bottom: 100%;
   left: 12px;
+  margin-bottom: 4px;
   z-index: 20;
   min-width: 280px;
   max-width: min(440px, 72vw);
