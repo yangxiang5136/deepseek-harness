@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react'
 import {
-  fmtDur, interruptedLanes,
+  fmtDur, noHeartbeat,
   type Chip, type FoldModel, type NeedsYouItem,
 } from './fold.ts'
 import type { TaskFlowFace } from './face.ts'
@@ -59,7 +59,7 @@ export function TitlePopover({ model, now, overflow, seal }: TitlePopoverProps):
     )
   }
 
-  const dead = interruptedLanes(model)
+  const dead = noHeartbeat(model)
   const empty = model.needsYou.length === 0 && dead.length === 0 && overflow.length === 0
 
   return (
@@ -112,11 +112,11 @@ export function TitlePopover({ model, now, overflow, seal }: TitlePopoverProps):
       {dead.length > 0 && (
         <>
           <div className={css.group}>无心跳</div>
-          {dead.map(lane => (
-            <div key={`${lane.delegateTask}:${lane.openTs}`} className={css.item}>
+          {dead.map(item => (
+            <div key={`${item.task}:${item.lastTs}`} className={css.item}>
               <span className={css.key}>静默</span>
               <span className={css.value}>
-                {`${lane.labelTask ?? lane.delegateTask} · ${fmtDur(now - lane.lastDshTs)} 无事件`}
+                {`${item.task} · ${fmtDur(now - item.lastTs)} 无事件`}
               </span>
             </div>
           ))}

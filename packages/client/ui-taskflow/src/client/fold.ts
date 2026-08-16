@@ -95,12 +95,33 @@ export interface NeedsYouItem {
   surface: string
 }
 
+/**
+ * A mainline task preempted by another start/switch but never terminated by
+ * its own done/drop (decision ㉕): the session behind it is presumed still
+ * working — a parallel interactive chat is running work even though the
+ * human's attention moved on. It stays visible as a running chip until its
+ * own terminal arrives, the task is re-started (back to current), an open
+ * debt takes over, or LANE_IDLE_MS of silence turns it no-heartbeat.
+ */
+export interface BackgroundTask {
+  task: string
+  project: string
+  surface: string
+  /** When its mainline span began (the chip's running-since instant). */
+  start: number
+  /** Last event carrying the same project+task; silence is measured from here. */
+  lastEvt: number
+  status: 'running' | 'interrupted'
+}
+
 /** The folded render model. */
 export interface FoldModel {
   history: HistorySegment[]
   current: CurrentTask | null
   /** Live lanes only (`running` | `interrupted`); closed/taken are dropped. */
   lanes: Lane[]
+  /** Preempted-but-unterminated session tasks (decision ㉕). */
+  background: BackgroundTask[]
   /** Open debts, longest-owed first. */
   needsYou: NeedsYouItem[]
 }
@@ -272,6 +293,7 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
   const today = events.filter(e => sameDay(e.t, nowMs)).sort((a, b) => a.t - b.t)
   const segments: HistorySegment[] = []
   const lanes: Lane[] = []
+  let background: BackgroundTask[] = []
   let open: AttentionEvent | null = null
   let activeLane: Lane | null = null
   // v17: the dsh-side task in flight, pasted back as its own segment on done.
@@ -290,6 +312,20 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
         drop: own && boundary.event === 'drop',
         note: own && typeof boundary.payload?.note === 'string' ? boundary.payload.note : null,
       })
+      // Decision ㉕: preemption (not the task's own terminal) means the
+      // session behind it is presumed still working — keep it running in the
+      // background layer. The attention segment above stays as-is: the strip
+      // accounts attention, the chip row accounts running work.
+      if (!own) {
+        background.push({
+          task: open.task,
+          project: open.project,
+          surface: open.surface,
+          start: open.t,
+          lastEvt: open.t,
+          status: 'running',
+        })
+      }
       open = null
     }
   }
@@ -359,12 +395,17 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
           if (activeLane === lane) activeLane = null
         }
       }
+      // Decision ㉕: the task's own late terminal ends its background run.
+      background = background.filter(b => !(b.project === e.project && b.task === e.task))
     }
     // v17: start/switch always switches; done/drop closes current only for
     // the same task (an unrelated completion never touches the mainline).
     if (e.event === 'start' || e.event === 'switch') {
       closeOpen(e)
       open = e
+      // Decision ㉕: coming back to a preempted task returns it to current —
+      // never current and background at once.
+      background = background.filter(b => !(b.project === e.project && b.task === e.task))
     } else if ((e.event === 'done' || e.event === 'drop') && open !== null && e.task === (open).task) {
       closeOpen(e)
     }
@@ -389,6 +430,14 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
   // v18: a silent running lane turns no-heartbeat — flagged, never removed.
   for (const lane of lanes) {
     if (lane.status === 'running' && nowMs - lane.lastDshTs > LANE_IDLE_MS) lane.status = 'interrupted'
+  }
+  // Decision ㉕: a background task's heartbeat is any same-identity event;
+  // silence beyond LANE_IDLE_MS turns it no-heartbeat (fail-loud, kept).
+  for (const b of background) {
+    for (const e of today) {
+      if (e.project === b.project && e.task === b.task && e.t > b.lastEvt) b.lastEvt = e.t
+    }
+    if (nowMs - b.lastEvt > LANE_IDLE_MS) b.status = 'interrupted'
   }
   const needsYou: NeedsYouItem[] = []
   for (const e of today) {
@@ -417,10 +466,14 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
     if (needsYou.some(n => n.task === lane.delegateTask
       || (lane.labelTask !== null && n.task === lane.labelTask))) lane.status = 'taken'
   }
+  // Decision ㉕: same single-presentation rule for background tasks.
+  background = background.filter(b =>
+    !needsYou.some(n => n.project === b.project && n.task === b.task))
   return {
     history: segments,
     current,
     lanes: lanes.filter(l => l.status !== 'closed' && l.status !== 'taken'),
+    background,
     needsYou,
   }
 }
@@ -539,7 +592,7 @@ export function buildTimeline(model: FoldModel, nowMs: number): TimelineItem[] {
 
 /** One running chip: the current mainline task or a live delegated lane. */
 export interface Chip {
-  kind: 'cur' | 'run'
+  kind: 'cur' | 'run' | 'bg'
   /** Source label: surface for the current task, engine for a lane. */
   src: string
   task: string
@@ -552,9 +605,10 @@ export interface Chip {
 }
 
 /**
- * The running chips in display order: current first, then running lanes by
- * open time. Interrupted lanes are excluded — they live in the popover's
- * no-heartbeat group (see {@link interruptedLanes}).
+ * The running chips in display order: current first, then delegated lanes
+ * and preempted background sessions (decision ㉕) merged by when they began.
+ * Interrupted entries of either kind are excluded — they live in the
+ * popover's no-heartbeat group (see {@link noHeartbeat}).
  * @param model - folded model.
  * @returns Chips, possibly empty.
  */
@@ -570,18 +624,25 @@ export function buildChips(model: FoldModel): Chip[] {
       paused: model.current.paused,
     })
   }
-  const running = model.lanes.filter(l => l.status !== 'interrupted')
-    .sort((a, b) => a.openTs - b.openTs)
-  for (const lane of running) {
-    chips.push({
+  const running: Chip[] = [
+    ...model.lanes.filter(l => l.status !== 'interrupted').map((lane): Chip => ({
       kind: 'run',
       src: lane.engine,
       task: lane.labelTask ?? lane.delegateTask,
       project: lane.project,
       start: lane.openTs,
       ticks: lane.ticks,
-    })
-  }
+    })),
+    ...model.background.filter(b => b.status === 'running').map((b): Chip => ({
+      kind: 'bg',
+      src: b.surface,
+      task: b.task,
+      project: b.project,
+      start: b.start,
+    })),
+  ]
+  running.sort((a, b) => a.start - b.start)
+  chips.push(...running)
   return chips
 }
 
@@ -593,6 +654,36 @@ export function buildChips(model: FoldModel): Chip[] {
  */
 export function interruptedLanes(model: FoldModel): Lane[] {
   return model.lanes.filter(l => l.status === 'interrupted').sort((a, b) => a.openTs - b.openTs)
+}
+
+/** One silent entry of the popover's 无心跳 group, lane or background. */
+export interface NoHeartbeatItem {
+  task: string
+  project: string
+  /** Last sign of life; the group shows how long since. */
+  lastTs: number
+}
+
+/**
+ * Everything silent beyond LANE_IDLE_MS — interrupted delegate lanes plus
+ * interrupted background sessions (decision ㉕), one fail-loud group.
+ * @param model - folded model.
+ * @returns Items, most recently alive last.
+ */
+export function noHeartbeat(model: FoldModel): NoHeartbeatItem[] {
+  const items: NoHeartbeatItem[] = [
+    ...interruptedLanes(model).map(lane => ({
+      task: lane.labelTask ?? lane.delegateTask,
+      project: lane.project,
+      lastTs: lane.lastDshTs,
+    })),
+    ...model.background.filter(b => b.status === 'interrupted').map(b => ({
+      task: b.task,
+      project: b.project,
+      lastTs: b.lastEvt,
+    })),
+  ]
+  return items.sort((a, b) => a.lastTs - b.lastTs)
 }
 
 /** Text-width seat: real DOM measurement when available, estTextW otherwise. */

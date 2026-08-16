@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   buildChips, buildModel, buildTimeline, CHIP_ROW_W, chipW, CLOSE_MS, estTextW, fmtDur,
-  IDLE_PAUSE_MS, interruptedLanes, LANE_IDLE_MS, normalizeProject, PALETTE, paletteColor,
+  IDLE_PAUSE_MS, interruptedLanes, LANE_IDLE_MS, noHeartbeat, normalizeProject, PALETTE, paletteColor,
   parseLedgerText, parseTs, splitChips, strLcp, toToken,
   type AttentionEvent, type Chip,
 } from '../src/client/fold.ts'
@@ -177,6 +177,84 @@ describe('lane homing (v13/v17/v18)', () => {
     ], T0 + 10_000)
     expect(model.lanes).toHaveLength(0)
     expect(model.needsYou).toHaveLength(1)
+  })
+})
+
+describe('background sessions (decision ㉕)', () => {
+  it('keeps a preempted, unterminated task as a running background chip', () => {
+    const model = buildModel([
+      ev('start', T0, { task: 'chat a' }),
+      ev('start', T0 + 600_000, { task: 'chat b' }),
+    ], T0 + 1_200_000)
+    expect(model.current?.task).toBe('chat b')
+    expect(model.background).toHaveLength(1)
+    expect(model.background[0]).toMatchObject({ task: 'chat a', status: 'running' })
+    // The attention segment still closed — strip accounts attention,
+    // chips account running work.
+    expect(model.history[0]).toMatchObject({ task: 'chat a', dur: 600_000 })
+    expect(buildChips(model).map(c => [c.kind, c.task])).toEqual([
+      ['cur', 'chat b'], ['bg', 'chat a'],
+    ])
+  })
+
+  it("ends the background run on the task's own late terminal (project+task)", () => {
+    const events = [
+      ev('start', T0, { task: 'chat a' }),
+      ev('start', T0 + 600_000, { task: 'chat b' }),
+    ]
+    const otherProject = buildModel([
+      ...events,
+      ev('done', T0 + 900_000, { task: 'chat a', project: 'other' }),
+    ], T0 + 1_200_000)
+    expect(otherProject.background).toHaveLength(1)
+    const own = buildModel([
+      ...events,
+      ev('done', T0 + 900_000, { task: 'chat a' }),
+    ], T0 + 1_200_000)
+    expect(own.background).toHaveLength(0)
+  })
+
+  it('returns a re-started task to current — never current and background at once', () => {
+    const model = buildModel([
+      ev('start', T0, { task: 'chat a' }),
+      ev('start', T0 + 600_000, { task: 'chat b' }),
+      ev('start', T0 + 900_000, { task: 'chat a' }),
+    ], T0 + 1_200_000)
+    expect(model.current?.task).toBe('chat a')
+    expect(model.background.map(b => b.task)).toEqual(['chat b'])
+  })
+
+  it('turns a silent background task no-heartbeat: out of chips, into the popover group', () => {
+    const model = buildModel([
+      ev('start', T0, { task: 'chat a' }),
+      ev('start', T0 + 60_000, { task: 'chat b' }),
+    ], T0 + 60_000 + LANE_IDLE_MS + 1000)
+    expect(model.background[0]?.status).toBe('interrupted')
+    expect(buildChips(model).some(c => c.kind === 'bg')).toBe(false)
+    expect(noHeartbeat(model)).toEqual([
+      { task: 'chat a', project: 'digital-me', lastTs: T0 },
+    ])
+  })
+
+  it('hands a background task with an open debt to the popover (single presentation)', () => {
+    const model = buildModel([
+      ev('start', T0, { task: 'chat a' }),
+      ev('start', T0 + 600_000, { task: 'chat b' }),
+      ev('needs-you', T0 + 900_000, { task: 'chat a', payload: { kind: 'review', ref: 'r' } }),
+    ], T0 + 1_200_000)
+    expect(model.background).toHaveLength(0)
+    expect(model.needsYou.map(n => n.task)).toEqual(['chat a'])
+  })
+
+  it('same-identity events are the background heartbeat', () => {
+    const half = LANE_IDLE_MS / 2
+    const model = buildModel([
+      ev('start', T0, { task: 'chat a' }),
+      ev('start', T0 + 1000, { task: 'chat b' }),
+      ev('delegate', T0 + half, { task: 'chat a' }),
+    ], T0 + half + half / 2)
+    // The delegate at T0+half refreshed chat a's lastEvt: still running.
+    expect(model.background.find(b => b.task === 'chat a')?.status).toBe('running')
   })
 })
 
@@ -420,6 +498,17 @@ describe('real ledger fixture (2026-08, folded at 2026-08-15T23:30-04:00)', () =
     ])
     // No-heartbeat lanes leave the chip row; only the current task chips.
     expect(buildChips(model).map(c => c.kind)).toEqual(['cur'])
+  })
+
+  it('keeps the two preempted, never-terminated sessions as no-heartbeat background', () => {
+    // Each was preempted by a later start and wrote no terminal that day;
+    // by 23:30 both are silent beyond LANE_IDLE_MS (decision ㉕).
+    expect(model.background.map(b => [b.task, b.status]).sort()).toEqual([
+      ['Chapter 3 Figure 7 direction visual review candidate', 'interrupted'],
+      ['TaskFlow 陪跑（续窗）', 'interrupted'],
+    ])
+    // One fail-loud group: five silent lanes + two silent sessions.
+    expect(noHeartbeat(model)).toHaveLength(7)
   })
 
   it('packs the TaskFlow build series on the strip', () => {
