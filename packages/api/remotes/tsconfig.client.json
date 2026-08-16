@@ -37,6 +37,9 @@
       "path": "../../host/plugin-inventory"
     },
     {
+      "path": "../../host/taskflow"
+    },
+    {
       "path": "../../interaction/commands"
     },
     {
