@@ -22,7 +22,7 @@ export const FRAG_MS = 60 * 1000
 export const REFRESH_MS = 10 * 1000
 /** History strip proportion model width; rendering resolves via %/cqw. */
 export const MODEL_W = 900
-/** Chip row usable-width heuristic (px) until S4 brings DOM measurement. */
+/** Fallback chip-row width (px) while the rendered row width is unobserved. */
 export const CHIP_ROW_W = 760
 
 /** One ledger event with its timestamp parsed to epoch ms. */
@@ -209,8 +209,9 @@ export function toToken(s: string): string {
 }
 
 /**
- * Text width heuristic (px at 10px font): CJK ≈ 10, ASCII ≈ 5.5. The client
- * bundle has no DOM measurement seat yet (S4); geometry stays approximate.
+ * Text width heuristic (px at 10px font): CJK ≈ 10, ASCII ≈ 5.5. The
+ * fallback seat where canvas measurement is unavailable, and the pure-fold
+ * default so tests stay DOM-free.
  * @param text - label text.
  * @returns Estimated pixel width.
  */
@@ -594,14 +595,22 @@ export function interruptedLanes(model: FoldModel): Lane[] {
   return model.lanes.filter(l => l.status === 'interrupted').sort((a, b) => a.openTs - b.openTs)
 }
 
+/** Text-width seat: real DOM measurement when available, estTextW otherwise. */
+export type TextMeasure = (text: string) => number
+
 /**
  * Estimated rendered width of one chip (dot + gaps + task + source tag +
- * padding + row gap), prototype v21 formula.
+ * padding + row gap), prototype v21 formula tightened toward the rendered
+ * geometry: the task label carries the paused suffix when it renders, is
+ * capped by the 150px CSS max-width, and the source tag scales to its 9px
+ * font off the 10px measuring basis.
  * @param chip - the chip.
+ * @param measure - text-width seat (defaults to the character heuristic).
  * @returns Estimated px width.
  */
-export function chipW(chip: Chip): number {
-  return 7 + 5 + estTextW(chip.task) + 5 + (estTextW(chip.src) + 12) + 18 + 6
+export function chipW(chip: Chip, measure: TextMeasure = estTextW): number {
+  const task = chip.kind === 'cur' && chip.paused === true ? `${chip.task} · 闲置` : chip.task
+  return 7 + 5 + Math.min(measure(task), 150) + 5 + (measure(chip.src) * 0.9 + 12) + 18 + 6
 }
 
 /**
@@ -610,16 +619,21 @@ export function chipW(chip: Chip): number {
  * 更多 running group). The first chip always shows.
  * @param chips - chips in display order.
  * @param rowWidth - usable row width in px.
+ * @param measure - text-width seat (defaults to the character heuristic).
  * @returns Shown prefix and overflowed remainder.
  */
-export function splitChips(chips: readonly Chip[], rowWidth: number = CHIP_ROW_W): {
+export function splitChips(
+  chips: readonly Chip[],
+  rowWidth: number = CHIP_ROW_W,
+  measure: TextMeasure = estTextW,
+): {
   shown: Chip[]
   overflow: Chip[]
 } {
   let accW = 0
   let splitIdx = 0
   for (const [i, chip] of chips.entries()) {
-    const w = chipW(chip)
+    const w = chipW(chip, measure)
     if (i > 0 && accW + w > rowWidth) break
     accW += w
     splitIdx++

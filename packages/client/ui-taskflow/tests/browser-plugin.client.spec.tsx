@@ -17,7 +17,36 @@ import type { TaskFlowFace } from '../src/client/face.ts'
 import type { TaskflowLedgerState } from '../src/client/ledger.ts'
 import { parseLedgerText, CLOSE_MS } from '../src/client/fold.ts'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
+
+/**
+ * ResizeObserver double for jsdom: fires once on observe (like the real one)
+ * with a fixed 120px content width — the clearance publisher ignores entries
+ * (it reads offsetHeight) and the row observer consumes the width.
+ */
+class FakeResizeObserver {
+  // Method-position type: bivariant, so the DOM callback assigns and the
+  // partial entry passes without a single type assertion (tsc and the
+  // typed-lint rule disagree about whether one would be necessary).
+  private readonly cb: {
+    fire(entries: Array<Pick<ResizeObserverEntry, 'contentRect'>>, observer: FakeResizeObserver): void
+  }['fire']
+
+  constructor(cb: ResizeObserverCallback) {
+    this.cb = cb
+  }
+
+  observe(): void {
+    this.cb([{ contentRect: new DOMRectReadOnly(0, 0, 120, 28) }], this)
+  }
+
+  disconnect(): void {}
+  unobserve(): void {}
+}
 
 type Wire<T> =
   | { readonly ok: true; readonly value: T }
@@ -173,6 +202,88 @@ describe('TaskFlowBar surface', () => {
     // No events at all: the strip says so instead of rendering nothing.
     expect(screen.getByText('今日暂无注意力事件')).toBeTruthy()
     expect(screen.getByText('无进行中任务')).toBeTruthy()
+  })
+
+  it('publishes its height as the clearance variable on the frame and clears it on unmount', () => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+    const state = stateOf([])
+    const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
+    const props = { useLedger, seal: vi.fn() } as unknown as TaskFlowBarProps
+    const view = render(
+      <div data-testid="frame">
+        <div data-shell-overlay="">
+          <TaskFlowBar {...props} />
+        </div>
+      </div>,
+    )
+    const frame = view.getByTestId('frame')
+    // jsdom heights are 0; what matters is that the seam is published…
+    expect(frame.style.getPropertyValue('--dsh-shell-bottom-clearance')).toBe('0px')
+    // …stays published across the collapse/expand element swap…
+    fireEvent.click(screen.getByText('空闲'))
+    expect(screen.getByText('TaskFlow')).toBeTruthy()
+    expect(frame.style.getPropertyValue('--dsh-shell-bottom-clearance')).toBe('0px')
+    // …and never survives the bar itself (no stale padding after dispose).
+    view.unmount()
+    expect(frame.style.getPropertyValue('--dsh-shell-bottom-clearance')).toBe('')
+  })
+
+  it('folds chips beyond the measured row width into +N whose detail is in the popover', () => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+    const base = Date.now()
+    const state = stateOf([
+      ledgerLine('start', new Date(base - 60_000).toISOString(), { task: '主线任务甲' }),
+      ledgerLine('delegate', new Date(base - 50_000).toISOString(), { task: '泳道乙', payload: { engine: 'dsh-creator' } }),
+      ledgerLine('delegate', new Date(base - 40_000).toISOString(), { task: '泳道丙', payload: { engine: 'codex' } }),
+    ])
+    renderBar(state, vi.fn())
+    fireEvent.click(screen.getByText(/主线任务甲/))
+    // The fake observer reports a 120px row: only the first chip fits.
+    expect(screen.getByText('+2')).toBeTruthy()
+    fireEvent.click(screen.getByText('TaskFlow'))
+    expect(screen.getByText('更多 running')).toBeTruthy()
+    expect(screen.getByText('泳道乙')).toBeTruthy()
+    expect(screen.getByText('泳道丙')).toBeTruthy()
+  })
+
+  it('publishes the clearance through the one-shot fallback when ResizeObserver is absent', () => {
+    // jsdom really has no ResizeObserver here (no stub): the publisher's
+    // observe-less immediate publish must still land on the frame.
+    const state = stateOf([])
+    const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
+    const props = { useLedger, seal: vi.fn() } as unknown as TaskFlowBarProps
+    const view = render(
+      <div data-testid="frame">
+        <div data-shell-overlay="">
+          <TaskFlowBar {...props} />
+        </div>
+      </div>,
+    )
+    expect(view.getByTestId('frame').style.getPropertyValue('--dsh-shell-bottom-clearance')).toBe('0px')
+  })
+
+  it('measures text through the canvas seat when a 2D context exists', () => {
+    const measureText = vi.fn((text: string) => ({ width: text.length * 7 }))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({ font: '', measureText } as unknown as CanvasRenderingContext2D)
+    const state = stateOf([
+      ledgerLine('start', new Date(Date.now() - 60_000).toISOString(), { task: '当前活' }),
+    ])
+    renderBar(state, vi.fn())
+    fireEvent.click(screen.getByText(/当前活/))
+    expect(measureText).toHaveBeenCalled()
+  })
+
+  it('renders through the heuristic seat when canvas access throws', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
+      throw new Error('no canvas')
+    })
+    const state = stateOf([
+      ledgerLine('start', new Date(Date.now() - 60_000).toISOString(), { task: '当前活' }),
+    ])
+    renderBar(state, vi.fn())
+    fireEvent.click(screen.getByText(/当前活/))
+    expect(screen.getByText('TaskFlow')).toBeTruthy()
   })
 
   it('opens the empty popover as 一切正常 and collapses back to the mini bar', () => {

@@ -1,17 +1,23 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactElement } from 'react'
 import {
-  buildTimeline, estTextW, fmtDur, MODEL_W, paletteColor,
-  type FoldModel, type TimelineItem,
+  buildTimeline, fmtDur, MODEL_W, paletteColor,
+  type FoldModel, type TextMeasure, type TimelineItem,
 } from './fold.ts'
 import type { ClickPop } from './interaction.ts'
 import { MemberRow, PopRow } from './PopRows.tsx'
 import css from './HistoryStrip.module.css'
 import popCss from './popover.module.css'
 
-/** Owner-fed props: the folded model, the clock, and the shared popover seat. */
+/**
+ * Owner-fed props: the folded model, the clock, the text-width seat (real
+ * canvas measurement with the estTextW fallback), and the shared popover seat.
+ */
 export interface HistoryStripProps {
   model: FoldModel
   now: number
+  measure: TextMeasure
+  /** Rendered strip width in px (the observed column; MODEL_W until known). */
+  stripW: number
   clickPop: ClickPop | null
   onTogglePop: (pop: ClickPop | null) => void
 }
@@ -30,7 +36,7 @@ function itemId(it: TimelineItem): string {
  * popovers. Pure presentation over the fold — geometry math is the prototype's
  * v13/v14 form: `%` widths for layout, `cqw`-clamped absolute inners on hover.
  */
-export function HistoryStrip({ model, now, clickPop, onTogglePop }: HistoryStripProps): ReactElement {
+export function HistoryStrip({ model, now, measure, stripW, clickPop, onTogglePop }: HistoryStripProps): ReactElement {
   const [hoverId, setHoverId] = useState<string | null>(null)
   const leaveTimer = useRef<number | null>(null)
   useEffect(() => () => {
@@ -94,12 +100,12 @@ export function HistoryStrip({ model, now, clickPop, onTogglePop }: HistoryStrip
     if (it.kind === 'agg') {
       const total = it.frags.reduce((a, f) => a + f.dur, 0)
       fullLabel = `零碎 ×${it.frags.length} · ${fmtDur(total)}`
-      baseLabel = wPct * MODEL_W / 100 < estTextW(fullLabel) + 14 ? `零碎 ×${it.frags.length}` : fullLabel
+      baseLabel = wPct * stripW / 100 < measure(fullLabel) + 14 ? `零碎 ×${it.frags.length}` : fullLabel
       kindCls = css.agg ?? ''
     } else if (it.kind === 'pack') {
       const p = it.pack
       fullLabel = `${p.prefix} ×${p.members.length} · ${fmtDur(p.totalDur)}`
-      baseLabel = wPct * MODEL_W / 100 < estTextW(fullLabel) + 14 ? `${p.prefix} ×${p.members.length}` : fullLabel
+      baseLabel = wPct * stripW / 100 < measure(fullLabel) + 14 ? `${p.prefix} ×${p.members.length}` : fullLabel
       kindCls = css.pack ?? ''
       hasDebt = p.members.some(m => debtTasks.has(m.seg.task))
     } else {
@@ -110,7 +116,7 @@ export function HistoryStrip({ model, now, clickPop, onTogglePop }: HistoryStrip
 
     // Hover width: at least the item's own share, at most content/60cqw/room
     // toward the free edge (v14 lower bound; v8 clamp).
-    const contentPx = estTextW(fullLabel) + 10
+    const contentPx = measure(fullLabel) + 10
     const leftPct = cumPct[idx] ?? 0
     const extendLeft = leftPct + 60 > 100
     const avail = extendLeft ? leftPct + wPct : 100 - leftPct

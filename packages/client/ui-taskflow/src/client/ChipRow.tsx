@@ -1,13 +1,18 @@
 import type { MouseEvent, ReactElement } from 'react'
-import { buildChips, fmtDur, paletteColor, splitChips, type FoldModel } from './fold.ts'
+import { fmtDur, paletteColor, type Chip } from './fold.ts'
 import type { ClickPop } from './interaction.ts'
 import { PopRow } from './PopRows.tsx'
 import css from './ChipRow.module.css'
 import popCss from './popover.module.css'
 
-/** Owner-fed props: the folded model, the clock, and the shared popover seat. */
+/**
+ * Owner-fed props: the already-split chips (the parent owns one split shared
+ * with the popover), the clock, and the shared popover seat.
+ */
 export interface ChipRowProps {
-  model: FoldModel
+  chips: readonly Chip[]
+  /** How many chips overflowed the row (rendered as the static +N marker). */
+  overflowCount: number
   now: number
   clickPop: ClickPop | null
   onTogglePop: (pop: ClickPop | null) => void
@@ -19,12 +24,11 @@ export interface ChipRowProps {
  * lives in the title popover. Deliberately a different visual grammar from
  * the strip above — continuous time band vs discrete objects.
  */
-export function ChipRow({ model, now, clickPop, onTogglePop }: ChipRowProps): ReactElement {
-  const { shown, overflow } = splitChips(buildChips(model))
+export function ChipRow({ chips, overflowCount, now, clickPop, onTogglePop }: ChipRowProps): ReactElement {
   return (
     <div className={css.row}>
-      {shown.length === 0 && <div className={css.empty}>无进行中任务</div>}
-      {shown.map((chip, i) => {
+      {chips.length === 0 && <div className={css.empty}>无进行中任务</div>}
+      {chips.map((chip, i) => {
         const open = clickPop?.type === 'chip' && clickPop.index === i
         const toggle = (e: MouseEvent): void => {
           e.stopPropagation()
@@ -48,7 +52,7 @@ export function ChipRow({ model, now, clickPop, onTogglePop }: ChipRowProps): Re
           </div>
         )
       })}
-      {overflow.length > 0 && <div className={css.more}>{`+${overflow.length}`}</div>}
+      {overflowCount > 0 && <div className={css.more}>{`+${overflowCount}`}</div>}
     </div>
   )
 }

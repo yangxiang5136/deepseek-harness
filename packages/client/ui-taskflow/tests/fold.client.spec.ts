@@ -310,16 +310,39 @@ describe('chips and width-driven overflow (v21)', () => {
     expect(chips.map(c => c.src)).toEqual(['claude-code', 'codex', 'claude-code'])
   })
 
-  it('always shows the first chip and splits the rest by estimated width', () => {
+  it('always shows the first chip and splits the rest by the row width', () => {
     const chip = (task: string): Chip => ({ kind: 'run', src: 'dsh', task, project: 'p', start: T0 })
     const wide = chip('宽'.repeat(200))
-    const { shown, overflow } = splitChips([wide, chip('a'), chip('b')], CHIP_ROW_W)
+    // The 150px CSS max-width caps even a huge task label…
+    expect(chipW(wide)).toBeLessThan(300)
+    // …so overflow is the row's doing, not the label's: a narrow row keeps
+    // only the always-shown first chip.
+    const { shown, overflow } = splitChips([wide, chip('a'), chip('b')], 100)
     expect(shown).toEqual([wide])
     expect(overflow).toHaveLength(2)
 
     const narrow = [chip('aa'), chip('bb'), chip('cc')]
-    expect(splitChips(narrow, 10_000).overflow).toHaveLength(0)
+    expect(splitChips(narrow, CHIP_ROW_W).overflow).toHaveLength(0)
     expect(chipW(narrow[0]!)).toBeGreaterThan(0)
+  })
+
+  it('mirrors rendered chip geometry: paused suffix in, task capped, source scaled', () => {
+    const base: Chip = { kind: 'cur', src: 's', task: '任务', project: 'p', start: T0 }
+    // The paused suffix renders on the chip, so it must be measured.
+    expect(chipW({ ...base, paused: true })).toBeGreaterThan(chipW(base))
+    const huge = (): number => 5_000
+    // Task side capped at 150 (CSS max-width); source tag scaled 9px/10px.
+    expect(chipW(base, huge)).toBe(7 + 5 + 150 + 5 + (5_000 * 0.9 + 12) + 18 + 6)
+  })
+
+  it('threads a custom text measure through splitChips (S4 canvas seat)', () => {
+    const chip = (task: string): Chip => ({ kind: 'run', src: 'dsh', task, project: 'p', start: T0 })
+    const chips = [chip('aaaa'), chip('bbbb'), chip('cccc')]
+    expect(splitChips(chips, 10_000).overflow).toHaveLength(0)
+    const huge = (): number => 5_000
+    const { shown, overflow } = splitChips(chips, 5_000, huge)
+    expect(shown).toHaveLength(1)
+    expect(overflow).toHaveLength(2)
   })
 })
 

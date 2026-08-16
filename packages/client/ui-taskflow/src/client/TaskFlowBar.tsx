@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the ui-layout SlotMap merge (the shell.overlay list slot).
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
-import { buildModel, REFRESH_MS } from './fold.ts'
+import { buildChips, buildModel, CHIP_ROW_W, estTextW, MODEL_W, REFRESH_MS, splitChips, type TextMeasure } from './fold.ts'
 import type { TaskFlowFace } from './face.ts'
 import type { ClickPop } from './interaction.ts'
 import { ChipRow } from './ChipRow.tsx'
@@ -11,8 +11,29 @@ import { MiniBar } from './MiniBar.tsx'
 import { TitlePopover } from './TitlePopover.tsx'
 import css from './TaskFlowBar.module.css'
 
+/** The CSS seam ui-layout's frame consumes for content avoidance (S4). */
+const CLEARANCE_VAR = '--dsh-shell-bottom-clearance'
+
 /** Full bar props: the shell.overlay runtime share & the injected face. */
 export type TaskFlowBarProps = PropsRuntime<'shell.overlay'> & InjectFace<TaskFlowFace>
+
+/**
+ * Real text measurement over a canvas at the label font, falling back to the
+ * estTextW character heuristic where canvas 2D is unavailable (jsdom).
+ * @returns The text-width seat used for chip overflow and hover widths.
+ */
+function createMeasure(): TextMeasure {
+  try {
+    const context = document.createElement('canvas').getContext('2d')
+    if (context === null) return estTextW
+    // Labels render at 10px in the app font (chip source tags at 9px keep
+    // the same basis, matching the heuristic's single-size model).
+    context.font = `10px ${getComputedStyle(document.body).fontFamily}`
+    return text => context.measureText(text).width
+  } catch {
+    return estTextW
+  }
+}
 
 /**
  * The TaskFlow bottom bar (spec §6 v3.0 final form): a collapsed 30px mini
@@ -21,6 +42,11 @@ export type TaskFlowBarProps = PropsRuntime<'shell.overlay'> & InjectFace<TaskFl
  * intake for debts / no-heartbeat lanes / overflow. Data arrives through the
  * polled ledger hook and refolds every 10 s and on a 30 s clock; a read error
  * rides the header (and the mini label) instead of freezing silently.
+ *
+ * The bar publishes its live height as {@link CLEARANCE_VAR} on the shell
+ * frame (the overlay layer's parent) so the frame's columns end above it —
+ * the composer-height precedent, pointed the other way: the consumer is an
+ * ancestor, so the property is set where inheritance can reach it.
  */
 export function TaskFlowBar({ useLedger, seal }: TaskFlowBarProps): ReactElement {
   const ledger = useLedger(s => s)
@@ -36,7 +62,60 @@ export function TaskFlowBar({ useLedger, seal }: TaskFlowBarProps): ReactElement
     return () => { window.clearInterval(timer) }
   }, [])
 
+  // Content avoidance: observe whichever root (mini or banner) is mounted and
+  // publish its height on the frame element; detach clears the property so a
+  // disposed bar never leaves stale padding behind. Callback ref, not an
+  // effect: the observed element changes identity on collapse/expand.
+  const clearanceObserver = useRef<ResizeObserver | null>(null)
+  const clearanceTarget = useRef<HTMLElement | null>(null)
+  const rootRef = useCallback((el: HTMLDivElement | null): void => {
+    clearanceObserver.current?.disconnect()
+    clearanceObserver.current = null
+    if (el === null) {
+      clearanceTarget.current?.style.removeProperty(CLEARANCE_VAR)
+      clearanceTarget.current = null
+      return
+    }
+    const frame = el.closest('[data-shell-overlay]')?.parentElement ?? null
+    if (frame === null) return
+    clearanceTarget.current = frame
+    const publish = (): void => {
+      frame.style.setProperty(CLEARANCE_VAR, `${el.offsetHeight}px`)
+    }
+    if (typeof ResizeObserver === 'undefined') {
+      publish()
+      return
+    }
+    // ResizeObserver fires once on observe, covering the initial publish.
+    clearanceObserver.current = new ResizeObserver(publish)
+    clearanceObserver.current.observe(el)
+  }, [])
+
+  // Real measured column width replaces the CHIP_ROW_W constant for the chip
+  // split (manifest §7 flagged it unverified) and gives the strip's label-fit
+  // test its rendered scale. One observer on the shared .left column serves
+  // both rows — they share its content width.
+  const [leftW, setLeftW] = useState<number | null>(null)
+  const leftObserver = useRef<ResizeObserver | null>(null)
+  const leftRef = useCallback((el: HTMLDivElement | null): void => {
+    leftObserver.current?.disconnect()
+    leftObserver.current = null
+    if (el === null || typeof ResizeObserver === 'undefined') return
+    leftObserver.current = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width
+      if (width !== undefined && width > 0) setLeftW(width)
+    })
+    leftObserver.current.observe(el)
+  }, [])
+
+  const measure = useMemo(createMeasure, [])
   const model = useMemo(() => buildModel(ledger.events, now), [ledger.events, now])
+  // One split feeds both the row and the popover's 更多 running group, so the
+  // +N marker and its detail can never disagree.
+  const chips = useMemo(
+    () => splitChips(buildChips(model), leftW ?? CHIP_ROW_W, measure),
+    [model, leftW, measure],
+  )
 
   if (collapsed) {
     return (
@@ -46,6 +125,7 @@ export function TaskFlowBar({ useLedger, seal }: TaskFlowBarProps): ReactElement
         loading={!ledger.read}
         error={ledger.error}
         onExpand={() => { setCollapsed(false) }}
+        rootRef={rootRef}
       />
     )
   }
@@ -60,7 +140,7 @@ export function TaskFlowBar({ useLedger, seal }: TaskFlowBarProps): ReactElement
   }
 
   return (
-    <div className={css.banner} onClick={closeAll}>
+    <div ref={rootRef} className={css.banner} onClick={closeAll}>
       <div className={css.head} onClick={collapse}>
         <span
           className={css.title}
@@ -84,11 +164,24 @@ export function TaskFlowBar({ useLedger, seal }: TaskFlowBarProps): ReactElement
           ▾
         </button>
       </div>
-      {titleOpen && <TitlePopover model={model} now={now} seal={seal} />}
+      {titleOpen && <TitlePopover model={model} now={now} overflow={chips.overflow} seal={seal} />}
       <div className={css.body}>
-        <div className={css.left}>
-          <HistoryStrip model={model} now={now} clickPop={clickPop} onTogglePop={setClickPop} />
-          <ChipRow model={model} now={now} clickPop={clickPop} onTogglePop={setClickPop} />
+        <div ref={leftRef} className={css.left}>
+          <HistoryStrip
+            model={model}
+            now={now}
+            measure={measure}
+            stripW={leftW ?? MODEL_W}
+            clickPop={clickPop}
+            onTogglePop={setClickPop}
+          />
+          <ChipRow
+            chips={chips.shown}
+            overflowCount={chips.overflow.length}
+            now={now}
+            clickPop={clickPop}
+            onTogglePop={setClickPop}
+          />
         </div>
       </div>
     </div>

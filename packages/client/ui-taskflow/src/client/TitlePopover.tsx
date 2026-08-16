@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from 'react'
 import {
-  buildChips, fmtDur, interruptedLanes, splitChips,
-  type FoldModel, type NeedsYouItem,
+  fmtDur, interruptedLanes,
+  type Chip, type FoldModel, type NeedsYouItem,
 } from './fold.ts'
 import type { TaskFlowFace } from './face.ts'
 import { doCopy, type CopyState } from './interaction.ts'
@@ -10,10 +10,15 @@ import css from './TitlePopover.module.css'
 /** Where the human confirmed a seal: the bar's own checkmark. */
 const SEAL_CONFIRMATION_REF = 'dsh-ui:seal-click'
 
-/** Owner-fed props: the folded model, the clock, and the seal verb. */
+/**
+ * Owner-fed props: the folded model, the clock, the chips that overflowed
+ * the row (the parent's split — one source with the +N marker), and the
+ * seal verb.
+ */
 export interface TitlePopoverProps {
   model: FoldModel
   now: number
+  overflow: readonly Chip[]
   seal: TaskFlowFace['seal']
 }
 
@@ -27,7 +32,7 @@ type SealState = 'busy' | 'sealed' | { failed: string }
  * dropped), and running chips that overflowed the row. Zero groups renders
  * 一切正常 rather than nothing, so an empty popover still answers the click.
  */
-export function TitlePopover({ model, now, seal }: TitlePopoverProps): ReactElement {
+export function TitlePopover({ model, now, overflow, seal }: TitlePopoverProps): ReactElement {
   const [sealStates, setSealStates] = useState<Record<string, SealState>>({})
   const [copied, setCopied] = useState<CopyState | null>(null)
 
@@ -55,7 +60,6 @@ export function TitlePopover({ model, now, seal }: TitlePopoverProps): ReactElem
   }
 
   const dead = interruptedLanes(model)
-  const { overflow } = splitChips(buildChips(model))
   const empty = model.needsYou.length === 0 && dead.length === 0 && overflow.length === 0
 
   return (

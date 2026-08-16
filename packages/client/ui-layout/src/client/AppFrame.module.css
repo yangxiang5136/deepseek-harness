@@ -4,6 +4,9 @@
   grid-template-rows: 100%;
   height: 100%;
   overflow: hidden;
+  /* Bottom residents of shell.overlay publish their height here so column
+     content ends above them; the overlay layer itself spans the padding. */
+  padding-bottom: var(--dsh-shell-bottom-clearance, 0px);
   background: var(--dsw-alias-bg-base);
   /* Collapse/expand animates the tracks on the deepsuite sider curve
      (--ds-ease-in-out / --ds-transition-duration-slow, ui-theme base.css). */

@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactElement } from 'react'
+import type { CSSProperties, ReactElement, Ref } from 'react'
 import { buildChips, fmtDur, paletteColor, type FoldModel } from './fold.ts'
 import css from './MiniBar.module.css'
 
@@ -11,6 +11,8 @@ export interface MiniBarProps {
   /** Read failure to surface on the label (fail-loud). */
   error?: string | undefined
   onExpand: () => void
+  /** Parent-owned ref: the avoidance publisher observes this root. */
+  rootRef: Ref<HTMLDivElement>
 }
 
 /**
@@ -19,7 +21,7 @@ export interface MiniBarProps {
  * minutes, and the +N parallel suffix. A read failure paints the label red
  * instead of letting the bar quietly freeze.
  */
-export function MiniBar({ model, now, loading, error, onExpand }: MiniBarProps): ReactElement {
+export function MiniBar({ model, now, loading, error, onExpand, rootRef }: MiniBarProps): ReactElement {
   const winStart = model.history.length > 0
     ? Math.min(...model.history.map(s => s.start))
     : now
@@ -53,7 +55,7 @@ export function MiniBar({ model, now, loading, error, onExpand }: MiniBarProps):
   }
 
   return (
-    <div className={css.mini} onClick={onExpand}>
+    <div ref={rootRef} className={css.mini} onClick={onExpand}>
       <div className={labelCls} style={{ left: 4 }}>{label}</div>
       <div className={css.strip}>
         {model.history.map((s, i) => (
