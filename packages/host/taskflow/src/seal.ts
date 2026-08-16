@@ -76,14 +76,46 @@ export function isNeedsYouOpen(events: LedgerEvent[], project: string, task: str
 }
 
 /**
+ * Decide whether one specific needs-you event (pinned by its `ts`) is open.
+ * @param events - parsed ledger events in file order.
+ * @param project - exact project string of the debt.
+ * @param task - exact task phrase of the debt.
+ * @param resolvesTs - the `ts` of the needs-you being resolved.
+ * @returns True when that event exists and no terminal lands ≥ CLOSE_MS after it.
+ */
+export function isNeedsYouOpenAt(
+  events: LedgerEvent[], project: string, task: string, resolvesTs: string,
+): boolean {
+  const mine = events.filter(e => e.project === project && e.task === task)
+  const filedEvent = mine.find(e => e.event === 'needs-you' && e.ts === resolvesTs)
+  if (filedEvent === undefined) return false
+  const filed = Date.parse(filedEvent.ts)
+  if (Number.isNaN(filed)) return false
+  return !mine.some((e) => {
+    if (e.event !== 'done' && e.event !== 'drop') return false
+    const t = Date.parse(e.ts)
+    return !Number.isNaN(t) && t - filed >= CLOSE_MS
+  })
+}
+
+/** Audit trail the seal line carries in its payload. */
+export interface SealAudit {
+  /** The `ts` of the needs-you event this done resolves. */
+  resolvesTs: string
+  /** Reference to the explicit human confirmation authorizing the close. */
+  confirmationRef: string
+}
+
+/**
  * Build the seal line to append: an att-compatible `done` event written by
- * the console surface with a seal marker in the payload.
+ * the console surface with the seal audit trail in the payload.
  * @param project - project string copied from the debt.
  * @param task - task phrase copied from the debt.
  * @param now - wall-clock time of the human's seal action.
+ * @param audit - what this done resolves and who confirmed it.
  * @returns One JSON line without trailing newline.
  */
-export function formatSealLine(project: string, task: string, now: Date): string {
+export function formatSealLine(project: string, task: string, now: Date, audit: SealAudit): string {
   const offsetMinutes = -now.getTimezoneOffset()
   const sign = offsetMinutes >= 0 ? '+' : '-'
   const pad = (n: number): string => String(Math.trunc(Math.abs(n))).padStart(2, '0')
@@ -91,6 +123,11 @@ export function formatSealLine(project: string, task: string, now: Date): string
   const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
     + `T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}${offset}`
   return JSON.stringify({
-    ts, surface: 'dsh', project, task, event: 'done', payload: { seal: true },
+    ts,
+    surface: 'dsh',
+    project,
+    task,
+    event: 'done',
+    payload: { seal: true, resolves_ts: audit.resolvesTs, confirmation_ref: audit.confirmationRef },
   })
 }

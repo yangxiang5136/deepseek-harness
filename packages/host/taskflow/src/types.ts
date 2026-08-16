@@ -12,12 +12,22 @@ export interface TaskflowLedgerSnapshot {
   text: string
 }
 
-/** Identify the debt to seal by its loose ledger identity. */
+/**
+ * Identify the debt to seal. Audit-grade human gate (Codex cross-review,
+ * 2026-08-15): the request pins the exact `needs-you` event being resolved
+ * and carries a reference to the explicit human confirmation, so a loosely
+ * matched same-name debt can never be sealed by accident and the ledger
+ * records what authorized the close.
+ */
 export interface TaskflowSealRequest {
   /** Exact project string of the open needs-you. */
   project: string
   /** Exact task phrase of the open needs-you. */
   task: string
+  /** The `ts` of the specific needs-you event being resolved. */
+  resolvesTs: string
+  /** Where the human confirmed (e.g. `dsh-ui:seal-click`, a chat quote ref). */
+  confirmationRef: string
 }
 
 /** Outcome of a seal attempt; never throws for business outcomes. */

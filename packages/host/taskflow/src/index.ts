@@ -12,7 +12,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 // Typert-generated ./typert and ./remote artifacts import Zod at runtime.
 import type {} from 'zod'
-import { formatSealLine, isNeedsYouOpen, parseLedger } from './seal.ts'
+import { formatSealLine, isNeedsYouOpenAt, parseLedger } from './seal.ts'
 import type {
   TaskflowLedgerSnapshot,
   TaskflowSealRequest,
@@ -20,8 +20,8 @@ import type {
 } from './types.ts'
 
 export type * from './types.ts'
-export { CLOSE_MS, formatSealLine, isNeedsYouOpen, parseLedger } from './seal.ts'
-export type { LedgerEvent } from './seal.ts'
+export { CLOSE_MS, formatSealLine, isNeedsYouOpen, isNeedsYouOpenAt, parseLedger } from './seal.ts'
+export type { LedgerEvent, SealAudit } from './seal.ts'
 
 /**
  * Absolute ledger path: the bus symlink, followed on read. The env override
@@ -56,11 +56,12 @@ export class TaskflowLedgerGateway extends TypertRemoteService {
   }
 
   /**
-   * Seal (收口) an open debt: validate a live `needs-you` for project+task,
-   * then append the human-authorized `done` line. Validation re-reads the
-   * ledger at call time so a debt sealed from another surface in the last
-   * poll interval is refused rather than double-closed.
-   * @param request - the debt's loose ledger identity.
+   * Seal (收口) an open debt: validate that the exact `needs-you` event the
+   * request pins (by its `ts`) is still open, then append the
+   * human-authorized `done` line carrying the audit trail. Validation
+   * re-reads the ledger at call time so a debt sealed from another surface
+   * in the last poll interval is refused rather than double-closed.
+   * @param request - the pinned debt identity plus the confirmation source.
    * @returns Business outcome; `sealed` false carries a machine reason.
    */
   @Remote('seal')
@@ -72,10 +73,14 @@ export class TaskflowLedgerGateway extends TypertRemoteService {
     } catch {
       return { sealed: false, reason: 'ledger-missing', line: null }
     }
-    if (!isNeedsYouOpen(parseLedger(text), request.project, request.task)) {
-      return { sealed: false, reason: 'no-open-needs-you', line: null }
-    }
-    const line = formatSealLine(request.project, request.task, new Date())
+    const open = isNeedsYouOpenAt(
+      parseLedger(text), request.project, request.task, request.resolvesTs,
+    )
+    if (!open) return { sealed: false, reason: 'no-open-needs-you', line: null }
+    const line = formatSealLine(request.project, request.task, new Date(), {
+      resolvesTs: request.resolvesTs,
+      confirmationRef: request.confirmationRef,
+    })
     await appendFile(path, `${line}\n`, 'utf8')
     return { sealed: true, reason: null, line }
   }

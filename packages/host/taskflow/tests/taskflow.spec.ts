@@ -8,6 +8,7 @@ import TaskflowLedgerGateway, {
   CLOSE_MS,
   formatSealLine,
   isNeedsYouOpen,
+  isNeedsYouOpenAt,
   parseLedger,
 } from '../src/index.ts'
 
@@ -77,11 +78,30 @@ describe('isNeedsYouOpen', () => {
   })
 })
 
+describe('isNeedsYouOpenAt', () => {
+  it('pins the exact needs-you event and refuses unknown references', () => {
+    const events = parseLedger([
+      line('needs-you', T0),
+      line('done', T0 + 1000),
+    ].join('\n'))
+    const ts = new Date(T0).toISOString()
+    expect(isNeedsYouOpenAt(events, 'p', 't', ts)).toBe(true)
+    expect(isNeedsYouOpenAt(events, 'p', 't', new Date(T0 + 5000).toISOString())).toBe(false)
+  })
+})
+
 describe('formatSealLine', () => {
-  it('emits an att-compatible done event with the seal marker', () => {
-    const parsed = JSON.parse(formatSealLine('p', 't', new Date(T0))) as Record<string, unknown>
+  it('emits an att-compatible done event carrying the seal audit trail', () => {
+    const audit = { resolvesTs: new Date(T0).toISOString(), confirmationRef: 'dsh-ui:seal-click' }
+    const parsed = JSON.parse(
+      formatSealLine('p', 't', new Date(T0), audit),
+    ) as Record<string, unknown>
     expect(parsed).toMatchObject({
-      surface: 'dsh', project: 'p', task: 't', event: 'done', payload: { seal: true },
+      surface: 'dsh',
+      project: 'p',
+      task: 't',
+      event: 'done',
+      payload: { seal: true, resolves_ts: audit.resolvesTs, confirmation_ref: audit.confirmationRef },
     })
     expect(Date.parse(parsed.ts as string)).toBe(T0)
     expect(parsed.ts as string).toMatch(/[+-]\d{2}:\d{2}$/)
@@ -121,25 +141,34 @@ describe('TaskflowLedgerGateway', () => {
     expect(await missing.gateway.read()).toMatchObject({ exists: false, text: '' })
   })
 
-  it('seal appends exactly one done line for an open debt', async () => {
+  const AUDIT = { resolvesTs: new Date(T0).toISOString(), confirmationRef: 'dsh-ui:seal-click' }
+
+  it('seal appends exactly one audited done line for the pinned open debt', async () => {
     const { gateway, path } = await harness(`${line('needs-you', T0)}\n`)
-    const result = await gateway.seal({ project: 'p', task: 't' })
+    const result = await gateway.seal({ project: 'p', task: 't', ...AUDIT })
     expect(result.sealed).toBe(true)
     const written = (await readFile(path, 'utf8')).trimEnd().split('\n')
     expect(written).toHaveLength(2)
-    expect(JSON.parse(written[1] ?? '')).toMatchObject({ event: 'done', payload: { seal: true } })
+    expect(JSON.parse(written[1] ?? '')).toMatchObject({
+      event: 'done',
+      payload: { seal: true, resolves_ts: AUDIT.resolvesTs, confirmation_ref: AUDIT.confirmationRef },
+    })
   })
 
-  it('seal refuses a debt that is already closed or unknown', async () => {
+  it('seal refuses a closed debt, a mismatched reference, and a missing ledger', async () => {
     const { gateway } = await harness([
       line('needs-you', T0),
       line('done', T0 + CLOSE_MS),
     ].join('\n'))
-    expect(await gateway.seal({ project: 'p', task: 't' })).toMatchObject({
+    expect(await gateway.seal({ project: 'p', task: 't', ...AUDIT })).toMatchObject({
       sealed: false, reason: 'no-open-needs-you',
     })
+    const open = await harness(`${line('needs-you', T0)}\n`)
+    expect(await open.gateway.seal({
+      project: 'p', task: 't', ...AUDIT, resolvesTs: new Date(T0 + 5000).toISOString(),
+    })).toMatchObject({ sealed: false, reason: 'no-open-needs-you' })
     const missing = await harness(null)
-    expect(await missing.gateway.seal({ project: 'p', task: 't' })).toMatchObject({
+    expect(await missing.gateway.seal({ project: 'p', task: 't', ...AUDIT })).toMatchObject({
       sealed: false, reason: 'ledger-missing',
     })
   })
