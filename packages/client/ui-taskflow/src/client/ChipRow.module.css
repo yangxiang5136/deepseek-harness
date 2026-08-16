@@ -1,0 +1,89 @@
+/* Running chip row (prototype v20/v21): discrete objects, no length semantics. */
+
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  height: 28px;
+  padding: 0 2px;
+}
+
+.chip {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 5px;
+  align-items: center;
+  padding: 3px 8px;
+  overflow: hidden;
+  font-size: 10px;
+  color: var(--dsw-alias-label-primary, #374151);
+  white-space: nowrap;
+  cursor: pointer;
+  background: var(--dsw-alias-bg-layer-1, #f8fafc);
+  border: 1px solid var(--dsw-alias-border-l1, #eef2f7);
+  border-radius: 999px;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.chip:hover {
+  background: var(--dsw-alias-interactive-bg-hover, #f1f5f9);
+  border-color: var(--dsw-alias-border-l2, #d1d5db);
+}
+
+/* Breathing dot: alive, 2 s pulse. */
+.dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  animation: breathe 2s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.task {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.src {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  font-size: 9px;
+  color: var(--dsw-alias-label-secondary, #64748b);
+  background: var(--dsw-alias-bg-layer-2, #eef2f7);
+  border-radius: 999px;
+}
+
+/* Width overflow marker: static +N, detail in the title popover. */
+.more {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: 22px;
+  padding: 0 4px;
+  font-size: 10px;
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}

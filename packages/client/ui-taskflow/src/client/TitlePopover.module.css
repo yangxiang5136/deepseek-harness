@@ -1,0 +1,133 @@
+/* Title popover (prototype .tf-badge-pop): the single intake for debts,
+   no-heartbeat lanes, and overflowed running chips. */
+
+.pop {
+  position: absolute;
+  top: 36px;
+  left: 12px;
+  z-index: 20;
+  min-width: 280px;
+  max-width: min(440px, 72vw);
+  max-height: 320px;
+  padding: 8px 10px;
+  overflow-y: auto;
+  font-size: 11px;
+  color: var(--dsw-alias-label-primary, #374151);
+  pointer-events: auto;
+  background: var(--dsw-alias-bg, #fff);
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-radius: 8px;
+  box-shadow: var(--dsw-shadow-lv3, 0 4px 16px rgb(15 23 42 / 16%));
+  animation: pop-in 0.12s ease-out;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.group {
+  margin: 8px 0 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  letter-spacing: 0.05em;
+}
+
+.group:first-child {
+  margin-top: 0;
+}
+
+.item {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 2px 0;
+  line-height: 1.5;
+}
+
+.key {
+  flex: 0 0 40px;
+  padding-top: 1px;
+  font-size: 10px;
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.value {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.ref {
+  color: var(--dsw-alias-label-secondary, #64748b);
+}
+
+.note {
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 2px 0 6px 46px;
+}
+
+/* The seal checkmark: the human gate — amber, the debt's own color. */
+.seal {
+  padding: 2px 8px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--dsw-alias-state-warn-primary, #92400e);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--dsw-alias-state-warn-primary, #d97706);
+  border-radius: 6px;
+}
+
+.seal:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.copy {
+  padding: 2px 8px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary, #374151);
+  cursor: pointer;
+  background: var(--dsw-alias-bg-layer-1, #f9fafb);
+  border: 1px solid var(--dsw-alias-border-l2, #d1d5db);
+  border-radius: 6px;
+}
+
+.copy:hover,
+.seal:hover:enabled {
+  background: var(--dsw-alias-interactive-bg-hover, #eef2f7);
+}
+
+.sealed {
+  font-size: 10px;
+  color: var(--dsw-alias-state-success-primary, #5eaa6e);
+}
+
+.error {
+  font-size: 10px;
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+}
+
+.allClear {
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}

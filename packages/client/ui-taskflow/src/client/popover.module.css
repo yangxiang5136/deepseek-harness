@@ -1,0 +1,68 @@
+/* Click popover shared by strip items and chips (prototype .tf-click-pop). */
+
+.pop {
+  position: absolute;
+  bottom: 100%;
+  z-index: 13;
+  min-width: 220px;
+  max-width: min(380px, 62vw);
+  max-height: 260px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  overflow-y: auto;
+  font-size: 11px;
+  color: var(--dsw-alias-label-primary, #374151);
+  pointer-events: auto;
+  background: var(--dsw-alias-bg, #fff);
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-radius: 8px;
+  box-shadow: var(--dsw-shadow-lv3, 0 4px 16px rgb(15 23 42 / 16%));
+  animation: pop-in 0.12s ease-out;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 2px 0;
+}
+
+.key {
+  flex: 0 0 40px;
+  padding-top: 1px;
+  font-size: 10px;
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.value {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.5;
+  word-break: break-all;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.member {
+  margin: 3px 0 0 48px;
+  line-height: 1.5;
+}
+
+.note {
+  display: block;
+  margin-left: 0;
+  font-size: 10px;
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}

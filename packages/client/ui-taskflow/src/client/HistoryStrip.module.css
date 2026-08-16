@@ -1,0 +1,137 @@
+/*
+ * History strip (prototype .tf-mainline): the solid time-history layer.
+ * container-type powers the cqw hover-width math; the outer/inner split is
+ * the v13 zero-reflow guarantee — outers are pure geometry, inners carry
+ * every visual and hover only ever moves an absolutely positioned inner.
+ */
+
+.mainline {
+  container-type: inline-size;
+  position: relative;
+  display: flex;
+  gap: 2px;
+  align-items: stretch;
+  height: 36px;
+  padding: 2px 0;
+  overflow: visible;
+  background: var(--dsw-alias-bg-layer-1, #f8fafc);
+  border: 1px solid var(--dsw-alias-border-l1, #eef2f7);
+  border-radius: 6px;
+}
+
+.outer {
+  position: relative;
+  flex: 0 0 auto;
+  height: 32px;
+}
+
+.inner {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0 4px;
+  overflow: hidden;
+  font-size: 10px;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid rgb(255 255 255 / 70%);
+  border-radius: 4px;
+  transition:
+    width 0.12s ease,
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    opacity 0.15s ease,
+    outline-color 0.15s ease;
+}
+
+.inner .label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Segment label text stays dark: it sits on the light data palette in both themes. */
+.seg {
+  color: #374151;
+}
+
+.lifted {
+  z-index: 10;
+  box-shadow: var(--dsw-shadow-lv3, 0 3px 8px rgb(15 23 42 / 18%));
+  transform: translateY(-2px);
+}
+
+.agg {
+  justify-content: center;
+  color: #475569;
+  background: #e8ecf2;
+}
+
+.agg .label {
+  text-align: center;
+}
+
+.pack {
+  justify-content: center;
+  font-weight: 500;
+  color: #3b4a63;
+  background: linear-gradient(180deg, #eaf0f8, #dce6f2);
+}
+
+.pack .label {
+  text-align: center;
+}
+
+/* Open right edge: the series is still growing (current task continues it). */
+.open::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 1px;
+  z-index: 2;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 6px solid #64748b;
+  transform: translateY(-50%);
+}
+
+/* Amber debt dot: a pack member still owes a seal. */
+.debt::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  z-index: 2;
+  width: 6px;
+  height: 6px;
+  background: var(--dsw-alias-state-warn-primary, #d97706);
+  border-radius: 50%;
+}
+
+/* v17 paste-back: a segment closed within the last minute arrives visibly. */
+.arrive {
+  animation: arrive 0.15s ease-out;
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0.4;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.empty {
+  padding: 8px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}

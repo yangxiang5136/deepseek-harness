@@ -1,0 +1,66 @@
+/* Collapsed 30px mini bar (prototype .tf-mini): history-only strip + label. */
+
+.mini {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 30px;
+  box-sizing: border-box;
+  pointer-events: auto;
+  cursor: pointer;
+  border-top: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+}
+
+.strip {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--dsw-alias-bg-layer-2, #f1f5f9);
+}
+
+.seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  border-radius: 1px;
+}
+
+/* The right edge is "now" (v17: the NOW line reduced to the edge marker). */
+.now {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 2px;
+  background: var(--dsw-alias-state-error-primary, #ef4444);
+}
+
+.chip {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  max-width: 55%;
+  padding: 2px 8px;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #475569);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  background: var(--dsw-alias-bg, rgb(255 255 255 / 94%));
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+  transform: translateY(-50%);
+}
+
+.paused {
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.error {
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+}
