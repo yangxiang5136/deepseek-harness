@@ -81,8 +81,6 @@ export function HistoryStrip({ model, now, measure, stripW, clickPop, onTogglePo
     acc += itemWPct(it)
   }
 
-  const debtTasks = new Set(model.needsYou.map(n => n.task))
-
   const rendered = items.map((it, idx) => {
     const id = itemId(it)
     const popOpen = clickPop !== null && clickPop.type !== 'chip' && clickPop.idx === idx
@@ -96,7 +94,6 @@ export function HistoryStrip({ model, now, measure, stripW, clickPop, onTogglePo
     let baseLabel: string
     let fullLabel: string
     let kindCls = ''
-    let hasDebt = false
     if (it.kind === 'agg') {
       const total = it.frags.reduce((a, f) => a + f.dur, 0)
       fullLabel = `零碎 ×${it.frags.length} · ${fmtDur(total)}`
@@ -107,7 +104,6 @@ export function HistoryStrip({ model, now, measure, stripW, clickPop, onTogglePo
       fullLabel = `${p.prefix} ×${p.members.length} · ${fmtDur(p.totalDur)}`
       baseLabel = wPct * stripW / 100 < measure(fullLabel) + 14 ? `${p.prefix} ×${p.members.length}` : fullLabel
       kindCls = css.pack ?? ''
-      hasDebt = p.members.some(m => debtTasks.has(m.seg.task))
     } else {
       fullLabel = `${it.seg.task} · ${fmtDur(it.seg.dur)}`
       baseLabel = it.seg.task
@@ -138,7 +134,6 @@ export function HistoryStrip({ model, now, measure, stripW, clickPop, onTogglePo
       css.inner, kindCls,
       expanded ? css.lifted : '',
       it.kind === 'pack' && it.openRight ? css.open : '',
-      it.kind === 'pack' && hasDebt ? css.debt : '',
       fresh ? css.arrive : '',
     ].filter(Boolean).join(' ')
 
