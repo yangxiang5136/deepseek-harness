@@ -5,7 +5,10 @@
   height: 100%;
   overflow: hidden;
   /* Bottom residents of shell.overlay publish their height here so column
-     content ends above them; the overlay layer itself spans the padding. */
+     content ends above them; the overlay layer itself spans the padding.
+     border-box, or the padding would grow the frame past its 100% height
+     and push the overlay's bottom edge below the viewport. */
+  box-sizing: border-box;
   padding-bottom: var(--dsh-shell-bottom-clearance, 0px);
   background: var(--dsw-alias-bg-base);
   /* Collapse/expand animates the tracks on the deepsuite sider curve
