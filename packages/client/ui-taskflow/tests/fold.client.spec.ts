@@ -12,7 +12,7 @@ process.env.TZ = 'America/New_York'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
-  buildChips, buildModel, buildTimeline, CHIP_ROW_W, chipW, CLOSE_MS, estTextW, fmtDur,
+  activeSpan, buildChips, buildModel, buildTimeline, CHIP_ROW_W, chipW, CLOSE_MS, estTextW, fmtDur,
   IDLE_PAUSE_MS, interruptedLanes, LANE_IDLE_MS, noHeartbeat, normalizeProject, PALETTE, paletteColor,
   parseLedgerText, parseTs, splitChips, strLcp, toToken,
   type AttentionEvent, type Chip,
@@ -177,6 +177,46 @@ describe('lane homing (v13/v17/v18)', () => {
     ], T0 + 10_000)
     expect(model.lanes).toHaveLength(0)
     expect(model.needsYou).toHaveLength(1)
+  })
+})
+
+describe('active time and the unified idle window (decisions ⑯/㉖)', () => {
+  it('unifies the no-heartbeat window with the 30-minute idle pause', () => {
+    expect(LANE_IDLE_MS).toBe(IDLE_PAUSE_MS)
+  })
+
+  it('caps silent stretches at IDLE_PAUSE_MS: a 10-hour wall span reads as active time', () => {
+    const events = [
+      ev('start', T0, { task: 'long' }),
+      ev('delegate', T0 + 10 * 60_000, { task: 'long' }),
+      // Seven silent hours, then one revival event.
+      ev('needs-you', T0 + 7 * 3_600_000, { task: 'long' }),
+    ]
+    const parsed = events
+    // 10min real + 30min cap for the 7h hole + 5min tail = 45min, not 7h+.
+    const active = activeSpan(parsed, 'digital-me', 'long', T0, T0 + 7 * 3_600_000 + 5 * 60_000)
+    expect(active).toBe(10 * 60_000 + IDLE_PAUSE_MS + 5 * 60_000)
+  })
+
+  it('feeds active time to the current task and background chips', () => {
+    const tenHours = 10 * 3_600_000
+    const model = buildModel([
+      ev('start', T0, { task: 'chat a' }),
+      ev('start', T0 + tenHours, { task: 'chat b' }),
+    ], T0 + tenHours + 60_000)
+    // chat a: capped at 30min despite the 10h wall span before preemption —
+    // and ten silent hours put it in the no-heartbeat group, not the chips.
+    expect(model.background[0]?.activeDur).toBe(IDLE_PAUSE_MS)
+    expect(model.current?.activeDur).toBe(60_000)
+    expect(noHeartbeat(model).map(i => i.task)).toEqual(['chat a'])
+
+    // A freshly preempted session is still a chip and carries active time.
+    const fresh = buildModel([
+      ev('start', T0, { task: 'chat c' }),
+      ev('start', T0 + 5 * 60_000, { task: 'chat d' }),
+    ], T0 + 6 * 60_000)
+    const bg = buildChips(fresh).find(c => c.kind === 'bg')
+    expect(bg?.activeDur).toBe(6 * 60_000)
   })
 })
 

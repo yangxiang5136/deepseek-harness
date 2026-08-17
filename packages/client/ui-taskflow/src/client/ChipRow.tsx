@@ -45,7 +45,11 @@ export function ChipRow({ chips, overflowCount, now, clickPop, onTogglePop }: Ch
                 <PopRow k="任务">{label}</PopRow>
                 <PopRow k="project">{chip.project}</PopRow>
                 <PopRow k="surface">{chip.src}</PopRow>
-                <PopRow k="已运行">{fmtDur(now - chip.start)}</PopRow>
+                {/* Lanes run on heartbeats (wall time is honest); cur/bg show
+                    active time only — idle stretches cap at 30 min (判决⑯㉖). */}
+                <PopRow k="已运行">{fmtDur(chip.activeDur ?? now - chip.start)}</PopRow>
+                {chip.kind === 'bg' && chip.lastEvt !== undefined
+                  && <PopRow k="最后活动">{`${fmtDur(now - chip.lastEvt)} 前`}</PopRow>}
                 {chip.ticks !== undefined && chip.ticks > 0 && <PopRow k="子构建">{`×${chip.ticks}`}</PopRow>}
               </div>
             )}

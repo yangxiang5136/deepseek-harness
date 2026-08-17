@@ -14,8 +14,13 @@
 export const IDLE_PAUSE_MS = 30 * 60 * 1000
 /** Minimum done-after-needs-you gap that counts as a human seal (decision ⑰). */
 export const CLOSE_MS = 60 * 1000
-/** Lane silence beyond this is a suspected interruption (no-heartbeat). */
-export const LANE_IDLE_MS = 60 * 60 * 1000
+/**
+ * Lane/background silence beyond this is a suspected interruption
+ * (no-heartbeat). Decision ㉖: unified with IDLE_PAUSE_MS at 30 min — the
+ * owner's original "no update means stopped" window (the prototype's 60 min
+ * let event-less delegate lanes read as running for hours).
+ */
+export const LANE_IDLE_MS = IDLE_PAUSE_MS
 /** Segments shorter than this aggregate into a 零碎 block. */
 export const FRAG_MS = 60 * 1000
 /** Full ledger re-read period (client poll). */
@@ -79,6 +84,8 @@ export interface CurrentTask {
   surface: string
   /** True when idle beyond IDLE_PAUSE_MS (auto-paused, not accumulating). */
   paused: boolean
+  /** Active time only (decision ⑯/㉖): idle stretches cap at IDLE_PAUSE_MS. */
+  activeDur: number
 }
 
 /** One open seal debt for the title popover's 待收口 group. */
@@ -112,6 +119,8 @@ export interface BackgroundTask {
   /** Last event carrying the same project+task; silence is measured from here. */
   lastEvt: number
   status: 'running' | 'interrupted'
+  /** Active time only (decision ⑯/㉖): idle stretches cap at IDLE_PAUSE_MS. */
+  activeDur: number
 }
 
 /** The folded render model. */
@@ -177,6 +186,37 @@ export function parseLedgerText(text: string): AttentionEvent[] {
     })
   }
   return events
+}
+
+/**
+ * Active time within one task span — decision ⑯ ("闲置时长不计入任务") made
+ * literal for the running-duration displays (decision ㉖): same-identity
+ * events chain the span, and any silent stretch between them (and the tail
+ * to now) counts at most IDLE_PAUSE_MS. A task whose wall clock spans ten
+ * hours but whose events cover forty minutes reads as forty-odd minutes,
+ * never ten hours.
+ * @param events - the day's events (filtered by identity here).
+ * @param project - task identity, project half.
+ * @param task - task identity, phrase half.
+ * @param from - span start (the start/switch instant).
+ * @param nowMs - wall-clock instant.
+ * @returns Active milliseconds.
+ */
+export function activeSpan(
+  events: readonly AttentionEvent[], project: string, task: string, from: number, nowMs: number,
+): number {
+  const ticks = events
+    .filter(e => e.project === project && e.task === task && e.t >= from && e.t <= nowMs)
+    .map(e => e.t)
+    .sort((a, b) => a - b)
+  let prev = from
+  let acc = 0
+  for (const t of ticks) {
+    acc += Math.min(t - prev, IDLE_PAUSE_MS)
+    prev = t
+  }
+  acc += Math.min(Math.max(0, nowMs - prev), IDLE_PAUSE_MS)
+  return acc
 }
 
 /**
@@ -324,6 +364,7 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
           start: open.t,
           lastEvt: open.t,
           status: 'running',
+          activeDur: 0,
         })
       }
       open = null
@@ -425,6 +466,7 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
       project: opened.project,
       surface: opened.surface,
       paused: nowMs - lastEvt > IDLE_PAUSE_MS,
+      activeDur: activeSpan(today, opened.project, opened.task, opened.t, nowMs),
     }
   }
   // v18: a silent running lane turns no-heartbeat — flagged, never removed.
@@ -438,6 +480,7 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
       if (e.project === b.project && e.task === b.task && e.t > b.lastEvt) b.lastEvt = e.t
     }
     if (nowMs - b.lastEvt > LANE_IDLE_MS) b.status = 'interrupted'
+    b.activeDur = activeSpan(today, b.project, b.task, b.start, nowMs)
   }
   const needsYou: NeedsYouItem[] = []
   for (const e of today) {
@@ -602,6 +645,10 @@ export interface Chip {
   paused?: boolean
   /** Lane sub-build count (`run` only). */
   ticks?: number
+  /** Active time (decisions ⑯/㉖), `cur`/`bg` only; lanes run on heartbeats. */
+  activeDur?: number
+  /** Last same-identity event (`cur`/`bg` only). */
+  lastEvt?: number
 }
 
 /**
@@ -622,6 +669,8 @@ export function buildChips(model: FoldModel): Chip[] {
       project: model.current.project,
       start: model.current.start,
       paused: model.current.paused,
+      activeDur: model.current.activeDur,
+      lastEvt: model.current.lastEvt,
     })
   }
   const running: Chip[] = [
@@ -639,6 +688,8 @@ export function buildChips(model: FoldModel): Chip[] {
       task: b.task,
       project: b.project,
       start: b.start,
+      activeDur: b.activeDur,
+      lastEvt: b.lastEvt,
     })),
   ]
   running.sort((a, b) => a.start - b.start)

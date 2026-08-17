@@ -47,11 +47,11 @@ export function MiniBar({ model, now, loading, error, onExpand, rootRef }: MiniB
       label = `${model.current.task} · 闲置${suffix}`
       labelCls = `${css.chip} ${css.paused}`
     } else {
-      label = `${model.current.task} ${fmtDur(now - model.current.start)}${suffix}`
+      label = `${model.current.task} ${fmtDur(model.current.activeDur)}${suffix}`
     }
   } else {
     const first = chips[0]
-    if (first !== undefined) label = `${first.task} ${fmtDur(now - first.start)}${suffix}`
+    if (first !== undefined) label = `${first.task} ${fmtDur(first.activeDur ?? now - first.start)}${suffix}`
   }
 
   return (
