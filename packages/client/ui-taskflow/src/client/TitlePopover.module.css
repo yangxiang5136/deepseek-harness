@@ -5,6 +5,9 @@
    the drill-down popovers already open upward for the same reason). */
 
 .pop {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+
   position: absolute;
   bottom: 100%;
   left: 12px;
@@ -61,7 +64,7 @@
   flex: 0 0 40px;
   padding-top: 1px;
   font-size: 10px;
-  color: var(--dsw-alias-label-secondary, #64748b);
+  color: var(--dsw-alias-label-secondary);
 }
 
 .value {
@@ -93,7 +96,7 @@
   font-family: inherit;
   font-size: 10px;
   font-weight: 600;
-  color: var(--dsw-alias-label-primary, #374151);
+  color: var(--dsw-alias-label-primary);
   cursor: pointer;
   background: transparent;
   border: 1px solid var(--dsw-alias-state-warn-primary, #d97706);

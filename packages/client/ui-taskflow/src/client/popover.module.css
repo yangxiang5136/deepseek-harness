@@ -1,6 +1,9 @@
 /* Click popover shared by strip items and chips (prototype .tf-click-pop). */
 
 .pop {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+
   position: absolute;
   bottom: 100%;
   z-index: 13;
