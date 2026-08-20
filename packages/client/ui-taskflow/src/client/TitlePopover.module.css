@@ -18,7 +18,7 @@
   font-size: 11px;
   color: var(--dsw-alias-label-primary, #374151);
   pointer-events: auto;
-  background: var(--dsw-alias-bg, #fff);
+  background: var(--dsw-alias-bg-layer-3, #fff);
   border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
   border-radius: 8px;
   box-shadow: var(--dsw-shadow-lv3, 0 4px 16px rgb(15 23 42 / 16%));
@@ -61,7 +61,7 @@
   flex: 0 0 40px;
   padding-top: 1px;
   font-size: 10px;
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  color: var(--dsw-alias-label-secondary, #64748b);
 }
 
 .value {
@@ -87,13 +87,13 @@
   margin: 2px 0 6px 46px;
 }
 
-/* The seal checkmark: the human gate — amber, the debt's own color. */
+/* The seal checkmark: readable label with the debt's amber outline. */
 .seal {
   padding: 2px 8px;
   font-family: inherit;
   font-size: 10px;
   font-weight: 600;
-  color: var(--dsw-alias-state-warn-primary, #92400e);
+  color: var(--dsw-alias-label-primary, #374151);
   cursor: pointer;
   background: transparent;
   border: 1px solid var(--dsw-alias-state-warn-primary, #d97706);

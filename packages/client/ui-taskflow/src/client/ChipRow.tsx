@@ -36,7 +36,11 @@ export function ChipRow({ chips, overflowCount, now, clickPop, onTogglePop }: Ch
         }
         const label = chip.task + (chip.kind === 'cur' && chip.paused === true ? ' · 闲置' : '')
         return (
-          <div key={`${chip.task}:${chip.start}`} className={css.chip} onClick={toggle}>
+          <div
+            key={`${chip.project}\u0000${chip.task}\u0000${chip.start}`}
+            className={css.chip}
+            onClick={toggle}
+          >
             <span className={css.dot} style={{ background: paletteColor(chip.project) }} />
             <span className={css.task}>{label}</span>
             <span className={css.src}>{chip.src}</span>

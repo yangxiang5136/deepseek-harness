@@ -1,23 +1,21 @@
 /** Wire types for the `taskflow` Remote namespace. */
 
-/** One-shot read of the attention ledger file. */
+/** One-shot read of the attention ledger source. */
 export interface TaskflowLedgerSnapshot {
-  /** Absolute ledger path the host read. */
+  /** Absolute file override or production attention-directory path the host read. */
   path: string
-  /** False when the ledger file is missing or unreadable. */
+  /** False when the selected ledger source does not exist. Other I/O failures reject. */
   exists: boolean
   /** File mtime in epoch milliseconds; null when `exists` is false. */
   mtimeMs: number | null
-  /** Raw JSONL text; empty string when `exists` is false. */
+  /** Chronologically concatenated raw JSONL text; empty when `exists` is false. */
   text: string
 }
 
 /**
- * Identify the debt to seal. Audit-grade human gate (Codex cross-review,
- * 2026-08-15): the request pins the exact `needs-you` event being resolved
- * and carries a reference to the explicit human confirmation, so a loosely
- * matched same-name debt can never be sealed by accident and the ledger
- * records what authorized the close.
+ * Identify the debt to seal. The request uses `event_id` when the target has
+ * one and otherwise falls back to the legacy timestamp, and carries the
+ * explicit human confirmation reference recorded by the resolver.
  */
 export interface TaskflowSealRequest {
   /** Exact project string of the open needs-you. */
@@ -26,7 +24,9 @@ export interface TaskflowSealRequest {
   task: string
   /** The `ts` of the specific needs-you event being resolved. */
   resolvesTs: string
-  /** Where the human confirmed (e.g. `dsh-ui:seal-click`, a chat quote ref). */
+  /** The target's `event_id`; omitted only for a legacy target without one. */
+  resolvesEventId?: string
+  /** Fixed human gesture reference; P0 accepts only `dsh-ui:seal-click`. */
   confirmationRef: string
 }
 
@@ -35,7 +35,7 @@ export interface TaskflowSealResult {
   /** True when the done event was appended. */
   sealed: boolean
   /** Business reason when not sealed; null on success. */
-  reason: 'no-open-needs-you' | 'ledger-missing' | null
+  reason: 'no-open-needs-you' | 'ledger-missing' | 'ledger-busy' | 'invalid-request' | null
   /** The appended JSON line on success; null otherwise. */
   line: string | null
 }

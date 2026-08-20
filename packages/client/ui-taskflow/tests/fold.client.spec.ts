@@ -12,14 +12,17 @@ process.env.TZ = 'America/New_York'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
-  activeSpan, buildChips, buildModel, buildTimeline, CHIP_ROW_W, chipW, CLOSE_MS, estTextW, fmtDur,
-  IDLE_PAUSE_MS, interruptedLanes, LANE_IDLE_MS, noHeartbeat, normalizeProject, PALETTE, paletteColor,
+  activeSpan, buildChips, buildModel, buildTimeline, CHIP_ROW_W, chipW, estTextW, fmtDur,
+  IDLE_PAUSE_MS, interruptedLanes, LANE_IDLE_MS, LEGACY_CLOSE_MS, noHeartbeat, normalizeProject, PALETTE, paletteColor,
   parseLedgerText, parseTs, splitChips, strLcp, toToken,
   type AttentionEvent, type Chip,
 } from '../src/client/fold.ts'
 
 /** Noon-anchored base instant: hour-scale offsets stay inside one local day. */
 const T0 = Date.parse('2026-08-15T08:00:00-04:00')
+const EVENT_ID = '11111111-1111-4111-8111-111111111111'
+const SECOND_EVENT_ID = '22222222-2222-4222-8222-222222222222'
+const SEAL_EVENT_ID = '33333333-3333-4333-8333-333333333333'
 
 /** Build one parsed event at an epoch-ms instant. */
 function ev(event: string, atMs: number, over: Partial<AttentionEvent> = {}): AttentionEvent {
@@ -50,21 +53,21 @@ describe('parseTs / parseLedgerText', () => {
       JSON.stringify({ event: 'done' }),
       '"just a string"',
       '',
-      JSON.stringify({ ts: '2026-08-15T08:01:00-04:00', surface: 's', project: 'p', task: 't', event: 'done', payload: { note: 'n' } }),
+      JSON.stringify({ ts: '2026-08-15T08:01:00-04:00', surface: 's', project: 'p', task: 't', event: 'done', schema_version: 2, event_id: EVENT_ID, payload: { note: 'n' } }),
     ].join('\n')
     const events = parseLedgerText(text)
     expect(events).toHaveLength(2)
     expect(events[0]?.event).toBe('start')
-    expect(events[1]?.payload).toEqual({ note: 'n' })
+    expect(events[1]).toMatchObject({ schemaVersion: 2, eventId: EVENT_ID, payload: { note: 'n' } })
   })
 })
 
-describe('seal timing (decision ⑰, CLOSE_MS)', () => {
-  it('keeps a debt open when the terminal lands within CLOSE_MS (AI wrap-up)', () => {
+describe('needs-you resolution', () => {
+  it('keeps the legacy v1 terminal heuristic as read-only compatibility', () => {
     const model = buildModel([
       ev('start', T0),
       ev('needs-you', T0 + 1000, { payload: { kind: 'review', ref: 'r' } }),
-      ev('done', T0 + 1000 + CLOSE_MS - 1),
+      ev('done', T0 + 1000 + LEGACY_CLOSE_MS - 1),
     ], T0 + 3_600_000)
     expect(model.needsYou).toHaveLength(1)
     expect(model.needsYou[0]).toMatchObject({ kind: 'review', task: 't', project: 'digital-me' })
@@ -72,23 +75,132 @@ describe('seal timing (decision ⑰, CLOSE_MS)', () => {
     expect(model.needsYou[0]?.ts).toBe(new Date(T0 + 1000).toISOString())
   })
 
-  it('closes the debt when a terminal lands at least CLOSE_MS later', () => {
+  it('closes a legacy v1 debt when a terminal lands at least LEGACY_CLOSE_MS later', () => {
     for (const terminal of ['done', 'drop']) {
       const model = buildModel([
         ev('start', T0),
         ev('needs-you', T0 + 1000),
-        ev(terminal, T0 + 1000 + CLOSE_MS),
+        ev(terminal, T0 + 1000 + LEGACY_CLOSE_MS),
       ], T0 + 3_600_000)
       expect(model.needsYou).toHaveLength(0)
     }
   })
 
-  it('matches the sealing terminal on project+task like the host gate', () => {
+  it('does not let an ordinary v2 terminal close a legacy debt through the heuristic', () => {
     const model = buildModel([
       ev('needs-you', T0),
-      ev('done', T0 + CLOSE_MS, { project: 'other' }),
+      ev('done', T0 + LEGACY_CLOSE_MS, {
+        schemaVersion: 2,
+        eventId: '123e4567-e89b-42d3-a456-426614174002',
+      }),
+    ], T0 + 2 * LEGACY_CLOSE_MS)
+    expect(model.needsYou).toHaveLength(1)
+  })
+
+  it('never lets an ordinary terminal close a v2 debt', () => {
+    for (const terminal of ['done', 'drop']) {
+      const model = buildModel([
+        ev('needs-you', T0, { schemaVersion: 2, eventId: EVENT_ID }),
+        ev(terminal, T0 + 10 * LEGACY_CLOSE_MS),
+      ], T0 + 12 * LEGACY_CLOSE_MS)
+      expect(model.needsYou).toHaveLength(1)
+    }
+  })
+
+  it('matches every resolver on project+task', () => {
+    const model = buildModel([
+      ev('needs-you', T0, { schemaVersion: 2, eventId: EVENT_ID }),
+      ev('done', T0 + LEGACY_CLOSE_MS, {
+        project: 'other',
+        payload: { seal: true, confirmation_ref: 'human', resolves_event_id: EVENT_ID },
+      }),
     ], T0 + 3_600_000)
     expect(model.needsYou).toHaveLength(1)
+  })
+
+  it('accepts an audited done resolver only from the v2 dsh seal writer', () => {
+    const model = buildModel([
+      ev('needs-you', T0, { schemaVersion: 2, eventId: EVENT_ID }),
+      ev('done', T0 + 1000, {
+        schemaVersion: 2,
+        eventId: SEAL_EVENT_ID,
+        surface: 'codex',
+        payload: { seal: true, confirmation_ref: 'human', resolves_event_id: EVENT_ID },
+      }),
+    ], T0 + 2000)
+    expect(model.needsYou).toHaveLength(1)
+  })
+
+  it('does not treat a legacy row carrying resolver fields as an exact resolver', () => {
+    const ts = new Date(T0).toISOString()
+    for (const rawResolver of [
+      ev('done', T0 + 1000, {
+        surface: 'dsh',
+        payload: { seal: true, confirmation_ref: 'human', resolves_ts: ts },
+      }),
+      ev('drop', T0 + 1000, {
+        payload: { note: 'Superseded: replacement', resolves_ts: ts },
+      }),
+    ]) {
+      const model = buildModel([ev('needs-you', T0, { ts }), rawResolver], T0 + 2000)
+      expect(model.needsYou).toHaveLength(1)
+    }
+  })
+
+  it('keeps v2 debt across midnight while timeline and current stay day-scoped', () => {
+    const yesterday = T0
+    const today = T0 + 24 * 3_600_000
+    const model = buildModel([
+      ev('needs-you', yesterday, { schemaVersion: 2, eventId: EVENT_ID, task: 'old debt' }),
+      ev('start', yesterday + 1000, { task: 'old history' }),
+      ev('done', yesterday + 2000, { task: 'old history' }),
+      ev('start', today, { task: 'today current' }),
+    ], today + 60_000)
+    expect(model.needsYou.map(item => item.task)).toEqual(['old debt'])
+    expect(model.current?.task).toBe('today current')
+    expect(model.history).toHaveLength(0)
+  })
+
+  it('uses append order for exact resolution despite a backward resolver clock', () => {
+    const model = buildModel([
+      ev('needs-you', T0, { schemaVersion: 2, eventId: EVENT_ID }),
+      ev('done', T0 - 1000, {
+        schemaVersion: 2,
+        eventId: SEAL_EVENT_ID,
+        surface: 'dsh',
+        payload: { seal: true, confirmation_ref: 'human', resolves_event_id: EVENT_ID },
+      }),
+    ], T0 + 60_000)
+    expect(model.needsYou).toHaveLength(0)
+  })
+
+  it('resolves one v2 debt by event_id and fails closed for duplicate legacy identity', () => {
+    const ts = new Date(T0).toISOString()
+    const v2 = buildModel([
+      ev('needs-you', T0, { schemaVersion: 2, eventId: EVENT_ID }),
+      ev('needs-you', T0, { schemaVersion: 2, eventId: SECOND_EVENT_ID }),
+      ev('drop', T0 + 1000, {
+        schemaVersion: 2,
+        eventId: SEAL_EVENT_ID,
+        payload: { note: 'Superseded: replacement', resolves_event_id: EVENT_ID },
+      }),
+    ], T0 + 2000)
+    expect(v2.needsYou.map(item => item.eventId)).toEqual([SECOND_EVENT_ID])
+
+    const invalidDrop = buildModel([
+      ev('needs-you', T0, { schemaVersion: 2, eventId: EVENT_ID }),
+      ev('drop', T0 + 1000, { payload: { resolves_event_id: EVENT_ID } }),
+    ], T0 + 2000)
+    expect(invalidDrop.needsYou).toHaveLength(1)
+
+    const legacy = buildModel([
+      ev('needs-you', T0, { ts }),
+      ev('needs-you', T0, { ts }),
+      ev('done', T0 + 2 * LEGACY_CLOSE_MS, {
+        payload: { seal: true, confirmation_ref: 'human', resolves_ts: ts },
+      }),
+    ], T0 + 3 * LEGACY_CLOSE_MS)
+    expect(legacy.needsYou).toHaveLength(2)
   })
 
   it('sorts open debts longest-owed first', () => {
@@ -130,6 +242,22 @@ describe('lane homing (v13/v17/v18)', () => {
     ], T0 + 200_000)
     expect(model.lanes).toHaveLength(0)
     expect(model.current).toBeNull()
+  })
+
+  it('does not close a lane or dsh sub-task on same-named cross-project terminals', () => {
+    const events = [
+      delegate(T0, 'orchestrate'),
+      dsh('start', T0 + 1000, 'build'),
+      dsh('done', T0 + 2000, 'build'),
+      ev('done', T0 + 3000, { project: 'other', task: 'orchestrate' }),
+    ]
+    events[2] = { ...events[2]!, project: 'other' }
+    const model = buildModel(events, T0 + 4000)
+    expect(model.lanes).toHaveLength(1)
+    expect(model.lanes[0]).toMatchObject({
+      project: 'digital-me', delegateTask: 'orchestrate', labelTask: 'build', status: 'running',
+    })
+    expect(model.history.some(segment => segment.task === 'build')).toBe(false)
   })
 
   it('routes dsh events to the newest lane (handover), leaving the older lane running', () => {
@@ -176,6 +304,17 @@ describe('lane homing (v13/v17/v18)', () => {
       ev('needs-you', T0 + 1000, { task: 'delegated work', surface: 'codex' }),
     ], T0 + 10_000)
     expect(model.lanes).toHaveLength(0)
+    expect(model.needsYou).toHaveLength(1)
+  })
+
+  it('does not hand a lane to a same-named debt from another project', () => {
+    const model = buildModel([
+      delegate(T0, 'delegated work'),
+      ev('needs-you', T0 + 1000, {
+        schemaVersion: 2, eventId: EVENT_ID, task: 'delegated work', project: 'other',
+      }),
+    ], T0 + 10_000)
+    expect(model.lanes).toHaveLength(1)
     expect(model.needsYou).toHaveLength(1)
   })
 })
@@ -320,6 +459,15 @@ describe('mainline current and idle pause', () => {
     expect(model.history).toHaveLength(1)
     expect(model.history[0]).toMatchObject({ task: 'a', dur: 120_000, drop: false })
     expect(model.current?.task).toBe('b')
+  })
+
+  it('does not close current on the same task name from another project', () => {
+    const model = buildModel([
+      ev('start', T0, { task: 'shared', project: 'one' }),
+      ev('done', T0 + 120_000, { task: 'shared', project: 'two' }),
+    ], T0 + 180_000)
+    expect(model.current).toMatchObject({ task: 'shared', project: 'one' })
+    expect(model.history).toHaveLength(0)
   })
 
   it("records the closing done's note and the drop flag on the segment", () => {
@@ -512,8 +660,10 @@ describe('real ledger fixture (2026-08, folded at 2026-08-15T23:30-04:00)', () =
     })
   })
 
-  it('keeps exactly the nine debts that were open at 23:30, longest-owed first', () => {
+  it('keeps the eleven historical-fixture debts open across days, longest-owed first', () => {
     expect(model.needsYou.map(n => n.task)).toEqual([
+      'TaskFlow P0.5 协议试点落地',
+      'TaskFlow P1 通栏活体原型',
       '评审多 AI TaskFlow 接入',
       '互审 TaskFlow 实施顺序',
       'Chapter 3 Figure 7 helmet-background candidate',
@@ -560,5 +710,21 @@ describe('real ledger fixture (2026-08, folded at 2026-08-15T23:30-04:00)', () =
   it('filters the fold to the reference day (no 08-14 events leak in)', () => {
     const dayStart = Date.parse('2026-08-15T00:00:00-04:00')
     for (const s of model.history) expect(s.start).toBeGreaterThanOrEqual(dayStart)
+  })
+})
+
+describe('theme-token integrity', () => {
+  it('uses declared layered background aliases instead of the nonexistent generic alias', () => {
+    const files = [
+      '../src/client/TaskFlowBar.module.css',
+      '../src/client/MiniBar.module.css',
+      '../src/client/TitlePopover.module.css',
+      '../src/client/popover.module.css',
+    ]
+    for (const file of files) {
+      const css = readFileSync(new URL(file, import.meta.url), 'utf8')
+      expect(css).not.toContain('var(--dsw-alias-bg,')
+      expect(css).toContain('var(--dsw-alias-bg-layer-')
+    }
   })
 })
