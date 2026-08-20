@@ -1,6 +1,9 @@
 /* Click popover shared by strip items and chips (prototype .tf-click-pop). */
 
 .pop {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+
   position: absolute;
   bottom: 100%;
   z-index: 13;
@@ -13,7 +16,7 @@
   font-size: 11px;
   color: var(--dsw-alias-label-primary, #374151);
   pointer-events: auto;
-  background: var(--dsw-alias-bg, #fff);
+  background: var(--dsw-alias-bg-layer-3, #fff);
   border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
   border-radius: 8px;
   box-shadow: var(--dsw-shadow-lv3, 0 4px 16px rgb(15 23 42 / 16%));

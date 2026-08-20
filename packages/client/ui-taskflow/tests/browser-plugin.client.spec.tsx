@@ -13,9 +13,10 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
 import type { TaskflowLedgerSnapshot, TaskflowSealResult } from '@deepseek-ai/dsh-api-remotes/client'
 import { apply, inject } from '../src/client/index.ts'
 import { TaskFlowBar, type TaskFlowBarProps } from '../src/client/TaskFlowBar.tsx'
+import { HistoryStrip } from '../src/client/HistoryStrip.tsx'
 import type { TaskFlowFace } from '../src/client/face.ts'
 import type { TaskflowLedgerState } from '../src/client/ledger.ts'
-import { parseLedgerText, CLOSE_MS } from '../src/client/fold.ts'
+import { parseLedgerText, LEGACY_CLOSE_MS, type FoldModel } from '../src/client/fold.ts'
 
 afterEach(() => {
   cleanup()
@@ -165,11 +166,17 @@ describe('TaskFlowBar surface', () => {
   }
 
   it('walks mini → expanded → title popover → seal with the audit pin intact', async () => {
-    // A debt owed well past CLOSE_MS plus a running current task.
-    const debtTs = new Date(Date.now() - 10 * CLOSE_MS).toISOString()
+    const now = Date.parse('2026-08-20T12:00:00-04:00')
+    vi.spyOn(Date, 'now').mockReturnValue(now)
+    const eventId = '123e4567-e89b-42d3-a456-426614174001'
+    const debtTs = new Date(now - 10 * LEGACY_CLOSE_MS).toISOString()
     const state = stateOf([
-      ledgerLine('needs-you', debtTs, { payload: { kind: 'review', ref: 'branch-x' } }),
-      ledgerLine('start', new Date(Date.now() - 5 * 60_000).toISOString(), { task: '移植 client' }),
+      ledgerLine('needs-you', debtTs, {
+        schema_version: 2,
+        event_id: eventId,
+        payload: { kind: 'review', ref: 'branch-x' },
+      }),
+      ledgerLine('start', new Date(now - 5 * 60_000).toISOString(), { task: '移植 client' }),
     ])
     const seal = vi.fn().mockResolvedValue({ sealed: true, message: null })
     renderBar(state, seal)
@@ -189,8 +196,66 @@ describe('TaskFlowBar surface', () => {
       project: 'digital-me',
       task: '交付评审',
       resolvesTs: debtTs,
+      resolvesEventId: eventId,
       confirmationRef: 'dsh-ui:seal-click',
     })
+  })
+
+  it('keeps seal progress isolated for two identical legacy debt rows', async () => {
+    const debtTs = new Date(Date.now() - 10 * LEGACY_CLOSE_MS).toISOString()
+    const duplicate = ledgerLine('needs-you', debtTs, { payload: { kind: 'review' } })
+    let finishFirst: ((value: { sealed: true; message: null }) => void) | undefined
+    const first = new Promise<{ sealed: true; message: null }>((resolve) => {
+      finishFirst = resolve
+    })
+    const seal = vi.fn()
+      .mockReturnValueOnce(first)
+      .mockResolvedValue({ sealed: true, message: null })
+    renderBar(stateOf([duplicate, duplicate]), seal)
+
+    fireEvent.click(screen.getByText('空闲'))
+    fireEvent.click(screen.getByText('TaskFlow'))
+    const buttons = screen.getAllByRole('button', { name: '收口 ✓' })
+    expect(buttons).toHaveLength(2)
+    fireEvent.click(buttons[0]!)
+    expect(screen.getByRole('button', { name: '收口中…' })).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: '收口 ✓' })).toHaveLength(1)
+
+    finishFirst?.({ sealed: true, message: null })
+    await screen.findByText('已收口 ✓')
+    expect(screen.getAllByRole('button', { name: '收口 ✓' })).toHaveLength(1)
+  })
+
+  it('accumulates same-named history only within the selected project', () => {
+    const model: FoldModel = {
+      history: [
+        {
+          start: 1_000, end: 121_000, task: '共享任务', project: 'alpha',
+          surface: 'codex', dur: 120_000, drop: false, note: null,
+        },
+        {
+          start: 122_000, end: 302_000, task: '共享任务', project: 'beta',
+          surface: 'claude-code', dur: 180_000, drop: false, note: null,
+        },
+      ],
+      current: null,
+      lanes: [],
+      background: [],
+      needsYou: [],
+    }
+    render(
+      <HistoryStrip
+        model={model}
+        now={400_000}
+        measure={() => 0}
+        stripW={900}
+        clickPop={{ type: 'seg', idx: 0 }}
+        onTogglePop={() => {}}
+      />,
+    )
+
+    expect(screen.getByText('累计').parentElement?.textContent).toBe('累计2m')
+    expect(screen.getByText('段数').parentElement?.textContent).toBe('段数1 段')
   })
 
   it('shows the read error on both the mini label and the expanded header', () => {

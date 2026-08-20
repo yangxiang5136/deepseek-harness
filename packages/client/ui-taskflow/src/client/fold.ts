@@ -3,7 +3,7 @@
  * model (spec §6 v3.0). Ported from prototype pkg-26 `buildModel` and its
  * render-side grouping passes; no I/O, no React, no ctx — the plugin folds a
  * parsed ledger snapshot plus a wall-clock instant and nothing else, so every
- * fold semantic (seal ≥ 60 s, lane homing, series packing, fragment
+ * fold semantic (exact debt resolution, lane homing, series packing, fragment
  * aggregation, idle pause, popover grouping) is unit-testable against a real
  * ledger fixture.
  */
@@ -12,8 +12,9 @@
 
 /** Idle gap that pauses the current task and breaks a pack chain. */
 export const IDLE_PAUSE_MS = 30 * 60 * 1000
-/** Minimum done-after-needs-you gap that counts as a human seal (decision ⑰). */
-export const CLOSE_MS = 60 * 1000
+/** Legacy v1 terminal gap retained only while reading existing ledger data. */
+export const LEGACY_CLOSE_MS = 60 * 1000
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /**
  * Lane/background silence beyond this is a suspected interruption
  * (no-heartbeat). Decision ㉖: unified with IDLE_PAUSE_MS at 30 min — the
@@ -40,6 +41,10 @@ export interface AttentionEvent {
   project: string
   task: string
   event: string
+  /** Ledger schema generation; v2 debts require an exact resolver. */
+  schemaVersion?: number
+  /** Stable identity when the writer uses the current protocol. */
+  eventId?: string
   payload: Record<string, unknown> | null
 }
 
@@ -91,8 +96,12 @@ export interface CurrentTask {
 /** One open seal debt for the title popover's 待收口 group. */
 export interface NeedsYouItem {
   t: number
+  /** Zero-based append position in the aggregated ledger snapshot. */
+  ledgerIndex: number
   /** Raw `ts` of the needs-you event — the seal request's `resolvesTs` pin. */
   ts: string
+  /** Stable target identity; absent for legacy ledger events. */
+  eventId?: string
   kind: string
   task: string
   project: string
@@ -180,6 +189,10 @@ export function parseLedgerText(text: string): AttentionEvent[] {
       project: record.project,
       task: record.task,
       event: record.event,
+      ...(typeof record.schema_version === 'number'
+        ? { schemaVersion: record.schema_version }
+        : {}),
+      ...(typeof record.event_id === 'string' ? { eventId: record.event_id } : {}),
       payload: typeof record.payload === 'object' && record.payload !== null
         ? record.payload as Record<string, unknown>
         : null,
@@ -320,17 +333,21 @@ export function fmtDur(ms: number): string {
 }
 
 /**
- * Fold today's ledger events into the render model. Direct port of prototype
+ * Fold the render model: execution views use `now`'s day, while attention debt
+ * uses the complete ledger in append order. This is a direct port of prototype
  * pkg-26 `buildModel` (v17 past/present layering, v13 lane homing, v18
- * no-heartbeat, decision ⑰ seal timing), with one deliberate alignment: the
- * seal-closed judgment matches on project+task like the host gate
- * (`isNeedsYouOpen`), where the prototype matched task alone.
- * @param events - parsed ledger events (any order; refiltered to `now`'s day).
+ * no-heartbeat) with exact project+task debt semantics aligned to the host.
+ * @param events - parsed ledger events in file/append order.
  * @param nowMs - wall-clock instant of the fold.
  * @returns The folded model.
  */
 export function buildModel(events: readonly AttentionEvent[], nowMs: number): FoldModel {
-  const today = events.filter(e => sameDay(e.t, nowMs)).sort((a, b) => a.t - b.t)
+  const appendOrder = [...events]
+  const today = appendOrder
+    .filter(e => sameDay(e.t, nowMs))
+    .map((event, index) => ({ event, index }))
+    .sort((a, b) => a.event.t - b.event.t || a.index - b.index)
+    .map(item => item.event)
   const segments: HistorySegment[] = []
   const lanes: Lane[] = []
   let background: BackgroundTask[] = []
@@ -340,7 +357,7 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
   let dshOpen: AttentionEvent | null = null
   const closeOpen = (boundary: AttentionEvent): void => {
     if (open !== null && boundary.t > open.t) {
-      const own = boundary.task === open.task
+      const own = boundary.project === open.project && boundary.task === open.task
         && (boundary.event === 'done' || boundary.event === 'drop')
       segments.push({
         start: open.t,
@@ -389,7 +406,7 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
       activeLane = lane
       continue
     }
-    if (activeLane !== null && isDsh) {
+    if (activeLane !== null && isDsh && e.project === activeLane.project) {
       if (e.t - activeLane.lastDshTs > LANE_IDLE_MS) {
         // Stale lane: mark interrupted and let this event fall through to the
         // mainline rules (prototype behavior — no continue).
@@ -405,7 +422,7 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
           activeLane.ticks++
           // v17: a dsh build task closing pastes back onto the history strip
           // as an independent segment and closes the lane row.
-          if (dshOpen !== null && e.task === dshOpen.task) {
+          if (dshOpen !== null && e.project === dshOpen.project && e.task === dshOpen.task) {
             segments.push({
               start: dshOpen.t,
               end: e.t,
@@ -430,7 +447,8 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
     // the orchestrator's own done/drop is the lane's closing boundary.
     if (e.event === 'done' || e.event === 'drop') {
       for (const lane of lanes) {
-        if (lane.status === 'running' && lane.delegateTask === e.task) {
+        if (lane.status === 'running' && lane.project === e.project
+          && lane.delegateTask === e.task) {
           lane.status = 'closed'
           lane.closeTs = e.t
           if (activeLane === lane) activeLane = null
@@ -447,7 +465,8 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
       // Decision ㉕: coming back to a preempted task returns it to current —
       // never current and background at once.
       background = background.filter(b => !(b.project === e.project && b.task === e.task))
-    } else if ((e.event === 'done' || e.event === 'drop') && open !== null && e.task === (open).task) {
+    } else if ((e.event === 'done' || e.event === 'drop') && open !== null
+      && e.project === open.project && e.task === open.task) {
       closeOpen(e)
     }
   }
@@ -457,7 +476,7 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
     const opened: AttentionEvent = open
     let lastEvt = opened.t
     for (const e of today) {
-      if (e.task === opened.task && e.t > lastEvt) lastEvt = e.t
+      if (e.project === opened.project && e.task === opened.task && e.t > lastEvt) lastEvt = e.t
     }
     current = {
       start: opened.t,
@@ -483,16 +502,28 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
     b.activeDur = activeSpan(today, b.project, b.task, b.start, nowMs)
   }
   const needsYou: NeedsYouItem[] = []
-  for (const e of today) {
-    if (e.event !== 'needs-you') continue
-    // Decision ⑰: sealed only by a terminal ≥ CLOSE_MS later — the filing
-    // AI's own wrap-up seconds after never counts as the human's seal.
-    const closed = today.some(d => (d.event === 'done' || d.event === 'drop')
-      && d.project === e.project && d.task === e.task && d.t - e.t >= CLOSE_MS)
+  const debts = appendOrder
+    .map((event, ledgerIndex) => ({ event, ledgerIndex }))
+    .filter(item => item.event.event === 'needs-you')
+  for (const { event: e, ledgerIndex } of debts) {
+    const sameIdentity = debts.filter(other => debtKey(other.event) === debtKey(e))
+    const later = appendOrder.slice(ledgerIndex + 1)
+    const explicit = later.filter(resolver => referencesDebt(resolver, e))
+    const exact = explicit.length > 0 && sameIdentity.length === 1
+      && explicit.some(resolver => resolvesDebt(resolver, e))
+    const filed = parseTs(e.ts)
+    const legacy = e.schemaVersion !== 2 && Number.isFinite(filed)
+      && later.some(terminal => terminal.project === e.project && terminal.task === e.task
+        && terminal.schemaVersion !== 2
+        && (terminal.event === 'done' || terminal.event === 'drop')
+        && terminal.t - filed >= LEGACY_CLOSE_MS)
+    const closed = exact || (sameIdentity.length === 1 && legacy)
     if (!closed) {
       needsYou.push({
         t: e.t,
+        ledgerIndex,
         ts: e.ts,
+        ...(e.eventId === undefined ? {} : { eventId: e.eventId }),
         kind: typeof e.payload?.kind === 'string' ? e.payload.kind : '—',
         task: e.task,
         project: e.project,
@@ -506,8 +537,9 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
   // v17: a lane whose debt is open leaves the running row — the debt entry
   // in the title popover takes over (never shown twice).
   for (const lane of lanes) {
-    if (needsYou.some(n => n.task === lane.delegateTask
-      || (lane.labelTask !== null && n.task === lane.labelTask))) lane.status = 'taken'
+    if (needsYou.some(n => n.project === lane.project
+      && (n.task === lane.delegateTask
+        || (lane.labelTask !== null && n.task === lane.labelTask)))) lane.status = 'taken'
   }
   // Decision ㉕: same single-presentation rule for background tasks.
   background = background.filter(b =>
@@ -519,6 +551,40 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
     background,
     needsYou,
   }
+}
+
+function debtKey(event: AttentionEvent): string {
+  return event.eventId === undefined
+    ? `legacy\u0000${event.project}\u0000${event.task}\u0000${event.ts}`
+    : `id\u0000${event.project}\u0000${event.task}\u0000${event.eventId}`
+}
+
+function resolvesDebt(resolver: AttentionEvent, debt: AttentionEvent): boolean {
+  if (resolver.project !== debt.project || resolver.task !== debt.task) return false
+  if (resolver.schemaVersion !== 2 || resolver.eventId === undefined
+    || !UUID.test(resolver.eventId)) return false
+  const payload = resolver.payload
+  if (payload === null) return false
+  if (resolver.event === 'done') {
+    if (resolver.surface !== 'dsh') return false
+    if (payload.seal !== true) return false
+    if (typeof payload.confirmation_ref !== 'string' || payload.confirmation_ref.trim() === '') {
+      return false
+    }
+  } else if (resolver.event === 'drop') {
+    if (typeof payload.note !== 'string' || !/^superseded(?:\b|:)/i.test(payload.note)) return false
+  } else {
+    return false
+  }
+  if (debt.eventId !== undefined) return payload.resolves_event_id === debt.eventId
+  return payload.resolves_event_id === undefined && payload.resolves_ts === debt.ts
+}
+
+function referencesDebt(resolver: AttentionEvent, debt: AttentionEvent): boolean {
+  if (resolver.project !== debt.project || resolver.task !== debt.task) return false
+  if (resolver.event !== 'done' && resolver.event !== 'drop') return false
+  if (debt.eventId !== undefined) return resolver.payload?.resolves_event_id === debt.eventId
+  return resolver.payload?.resolves_event_id === undefined && resolver.payload?.resolves_ts === debt.ts
 }
 
 /** One packed series of finished same-project, shared-prefix segments. */

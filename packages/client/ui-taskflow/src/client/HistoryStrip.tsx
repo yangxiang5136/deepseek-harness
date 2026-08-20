@@ -22,11 +22,14 @@ export interface HistoryStripProps {
   onTogglePop: (pop: ClickPop | null) => void
 }
 
-/** Stable hover identity across 10 s refolds (task+start, not array index). */
+/** Stable hover identity across 10 s refolds, including project identity. */
 function itemId(it: TimelineItem): string {
-  if (it.kind === 'seg') return `s:${it.seg.task}:${it.seg.start}`
-  if (it.kind === 'pack') return `p:${it.pack.prefix}:${it.idx}`
-  return `a:${it.frags[0]?.start ?? 0}`
+  if (it.kind === 'seg') return `s:${it.seg.project}\u0000${it.seg.task}\u0000${it.seg.start}`
+  if (it.kind === 'pack') return `p:${it.pack.project}\u0000${it.pack.prefix}\u0000${it.idx}`
+  const first = it.frags[0]
+  return first === undefined
+    ? 'a:empty'
+    : `a:${first.project}\u0000${first.task}\u0000${first.start}`
 }
 
 /**
@@ -142,7 +145,7 @@ export function HistoryStrip({ model, now, measure, stripW, clickPop, onTogglePo
       let content: ReactElement[]
       if (it.kind === 'seg') {
         const seg = it.seg
-        const sameTask = model.history.filter(s => s.task === seg.task)
+        const sameTask = model.history.filter(s => s.project === seg.project && s.task === seg.task)
         const totalDur = sameTask.reduce((a, s) => a + s.dur, 0)
         content = [
           <PopRow key="task" k="任务">{seg.task}</PopRow>,
