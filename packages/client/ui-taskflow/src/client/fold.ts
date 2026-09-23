@@ -261,6 +261,34 @@ export function displayProject(p: string): string {
   return PROJECT_DISPLAY_ALIASES[p] ?? p
 }
 
+/** One project column in the needs-you tray. */
+export interface DebtGroup {
+  /** Board label (display aliases applied, e.g. MSC_AI → ARK). */
+  project: string
+  /** Open debts, longest-owed first. */
+  items: NeedsYouItem[]
+}
+
+/**
+ * Group open debts into tray columns by display project: busiest project
+ * first (ties by name), and within a column the longest-owed debt first.
+ * Identity stays on each item — grouping never rewrites `project`.
+ * @param debts - open needs-you items from the folded model.
+ * @returns Columns for the tray.
+ */
+export function groupDebtsByProject(debts: readonly NeedsYouItem[]): DebtGroup[] {
+  const byProject = new Map<string, NeedsYouItem[]>()
+  for (const debt of debts) {
+    const label = displayProject(debt.project)
+    const list = byProject.get(label)
+    if (list === undefined) byProject.set(label, [debt])
+    else list.push(debt)
+  }
+  return [...byProject.entries()]
+    .map(([project, items]) => ({ project, items: [...items].sort((a, b) => b.owed - a.owed) }))
+    .sort((a, b) => b.items.length - a.items.length || a.project.localeCompare(b.project))
+}
+
 /**
  * Loose project identity for pack affinity: lowercase alphanumerics, with the
  * digital-me ≈ DME alias folded (prototype v11 normalizeProject) and display

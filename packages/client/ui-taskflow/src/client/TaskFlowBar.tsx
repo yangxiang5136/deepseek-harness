@@ -8,6 +8,8 @@ import type { ClickPop } from './interaction.ts'
 import { ChipRow } from './ChipRow.tsx'
 import { HistoryStrip } from './HistoryStrip.tsx'
 import { MiniBar } from './MiniBar.tsx'
+import { NeedsYouTray } from './NeedsYouTray.tsx'
+import { useDeferredSeal } from './deferredSeal.ts'
 import { TitlePopover } from './TitlePopover.tsx'
 import css from './TaskFlowBar.module.css'
 
@@ -121,6 +123,9 @@ export function TaskFlowBar({ useLedger, seal }: TaskFlowBarProps): ReactElement
     () => splitChips(buildChips(model), leftW ?? CHIP_ROW_W, measure),
     [model, leftW, measure],
   )
+  // Bar-owned so collapsing the tray or the whole bar never drops a seal
+  // that is still inside its 撤销 window.
+  const sealer = useDeferredSeal(seal)
 
   if (collapsed) {
     return (
@@ -189,6 +194,7 @@ export function TaskFlowBar({ useLedger, seal }: TaskFlowBarProps): ReactElement
           />
         </div>
       </div>
+      <NeedsYouTray debts={model.needsYou} sealer={sealer} />
     </div>
   )
 }
