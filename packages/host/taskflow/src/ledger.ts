@@ -21,7 +21,7 @@ const EVENTS = new Set(['start', 'switch', 'delegate', 'needs-you', 'done', 'dro
 const SURFACES = new Set(['claude-code', 'cowork', 'codex', 'dsh', 'human'])
 const PROJECTS = new Set([
   'PhD Dissertation', 'digital-me', 'TaskFlow', 'my-memories',
-  'job', 'life-admin', 'machine', 'ARK',
+  'job', 'life-admin', 'machine', 'ARK', 'MSC_AI', 'blacksburg-secondhand',
 ])
 const NEEDS_YOU_KINDS = new Set(['merge', 'decision', 'review'])
 const ROOT_FIELDS = new Set([

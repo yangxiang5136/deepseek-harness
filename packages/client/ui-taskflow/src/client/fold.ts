@@ -246,13 +246,30 @@ export function sameDay(t: number, ref: number): boolean {
 }
 
 /**
+ * Display-only project aliases. The ledger keeps the exact written name for
+ * identity and seals; only labels, colours and grouping fold (Sean 2026-09-23:
+ * MSC_AI and ARK are one project on the board, both names stay writable).
+ */
+const PROJECT_DISPLAY_ALIASES: Readonly<Record<string, string>> = { MSC_AI: 'ARK' }
+
+/**
+ * Board-facing project label. Never use it for identity or seal payloads.
+ * @param p - exact project string from the ledger.
+ * @returns The label the board shows.
+ */
+export function displayProject(p: string): string {
+  return PROJECT_DISPLAY_ALIASES[p] ?? p
+}
+
+/**
  * Loose project identity for pack affinity: lowercase alphanumerics, with the
- * digital-me ≈ DME alias folded (prototype v11 normalizeProject).
+ * digital-me ≈ DME alias folded (prototype v11 normalizeProject) and display
+ * aliases applied.
  * @param p - raw project string.
  * @returns Normalized identity token.
  */
 export function normalizeProject(p: string): string {
-  const n = p.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const n = displayProject(p).toLowerCase().replace(/[^a-z0-9]/g, '')
   return n === 'digitalme' || n === 'dme' ? 'digitalme' : n
 }
 

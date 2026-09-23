@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   activeSpan, buildChips, buildModel, buildTimeline, CHIP_ROW_W, chipW, estTextW, fmtDur,
-  IDLE_PAUSE_MS, interruptedLanes, LANE_IDLE_MS, LEGACY_CLOSE_MS, noHeartbeat, normalizeProject, PALETTE, paletteColor,
+  IDLE_PAUSE_MS, interruptedLanes, LANE_IDLE_MS, LEGACY_CLOSE_MS, noHeartbeat, displayProject, normalizeProject, PALETTE, paletteColor,
   parseLedgerText, parseTs, splitChips, strLcp, toToken,
   type AttentionEvent, type Chip,
 } from '../src/client/fold.ts'
@@ -617,6 +617,13 @@ describe('label helpers', () => {
     expect(normalizeProject('digital-me')).toBe('digitalme')
     expect(normalizeProject('DME')).toBe('digitalme')
     expect(normalizeProject('PhD Dissertation')).toBe('phddissertation')
+    expect(normalizeProject('MSC_AI')).toBe(normalizeProject('ARK'))
+  })
+
+  it('displayProject folds MSC_AI into ARK for labels only', () => {
+    expect(displayProject('MSC_AI')).toBe('ARK')
+    expect(displayProject('ARK')).toBe('ARK')
+    expect(displayProject('blacksburg-secondhand')).toBe('blacksburg-secondhand')
   })
 
   it('strLcp/toToken trim a shared prefix back to a whole token', () => {

@@ -402,6 +402,17 @@ describe('ledger reads', () => {
     }
   })
 
+  it('accepts v2 rows for every allowlisted project, including MSC_AI and blacksburg-secondhand', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'taskflow-projects-v2-'))
+    const path = join(dir, 'projects.jsonl')
+    const rows = ['ARK', 'MSC_AI', 'blacksburg-secondhand'].map(project =>
+      line('start', T0, { schema_version: 2, event_id: randomUUID(), project }))
+    await writeFile(path, `${rows.join('\n')}\n`, { mode: 0o600 })
+    const snapshot = await readLedgerFile(path)
+    const projects = snapshot.text.trim().split('\n').map(r => (JSON.parse(r) as { project: string }).project)
+    expect(projects).toEqual(['ARK', 'MSC_AI', 'blacksburg-secondhand'])
+  })
+
   it('rejects malformed v2 identity, timestamp, and resolver fields before folding', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'taskflow-invalid-v2-'))
     const path = join(dir, 'override.jsonl')

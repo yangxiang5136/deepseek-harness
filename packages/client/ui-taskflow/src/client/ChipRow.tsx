@@ -1,5 +1,5 @@
 import type { MouseEvent, ReactElement } from 'react'
-import { fmtDur, paletteColor, type Chip } from './fold.ts'
+import { displayProject, fmtDur, paletteColor, type Chip } from './fold.ts'
 import type { ClickPop } from './interaction.ts'
 import { PopRow } from './PopRows.tsx'
 import css from './ChipRow.module.css'
@@ -41,13 +41,13 @@ export function ChipRow({ chips, overflowCount, now, clickPop, onTogglePop }: Ch
             className={css.chip}
             onClick={toggle}
           >
-            <span className={css.dot} style={{ background: paletteColor(chip.project) }} />
+            <span className={css.dot} style={{ background: paletteColor(displayProject(chip.project)) }} />
             <span className={css.task}>{label}</span>
             <span className={css.src}>{chip.src}</span>
             {open && (
               <div className={popCss.pop} style={{ left: 0 }} onClick={(e) => { e.stopPropagation() }}>
                 <PopRow k="任务">{label}</PopRow>
-                <PopRow k="project">{chip.project}</PopRow>
+                <PopRow k="project">{displayProject(chip.project)}</PopRow>
                 <PopRow k="surface">{chip.src}</PopRow>
                 {/* Lanes run on heartbeats (wall time is honest); cur/bg show
                     active time only — idle stretches cap at 30 min (判决⑯㉖). */}
