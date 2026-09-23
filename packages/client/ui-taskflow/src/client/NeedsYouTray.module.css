@@ -1,0 +1,236 @@
+/*
+ * Needs-you tray (2026-09-23): open debts laid out under the history strip
+ * and chip row, one column per project. Chrome follows the --dsw-* aliases so
+ * both themes work; the project dot reuses the bar's identity palette.
+ */
+
+.tray {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  padding: 0 12px 8px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-primary, #374151);
+}
+
+.head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  padding: 4px 0;
+  font-family: inherit;
+  font-size: 11px;
+  color: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+}
+
+.title {
+  font-weight: 600;
+}
+
+.count {
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--dsw-alias-state-warn-primary, #b45309);
+  border: 1px solid var(--dsw-alias-state-warn-primary, #d97706);
+  border-radius: 6px;
+}
+
+.hint {
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.empty {
+  padding: 4px 0;
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.col {
+  min-width: 0;
+  padding: 6px 8px;
+  background: var(--dsw-alias-bg-layer-2, #f9fafb);
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-radius: 6px;
+}
+
+.colHead {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.project {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.colCount {
+  font-weight: 400;
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.row {
+  padding: 3px 0;
+  border-top: 1px solid var(--dsw-alias-border-l1, #f1f5f9);
+}
+
+.line {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.kind,
+.kindDecision {
+  flex: none;
+  padding: 0 5px;
+  font-size: 10px;
+  border-radius: 4px;
+}
+
+.kind {
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+}
+
+.kindDecision {
+  color: var(--dsw-alias-interactive-primary, #2563eb);
+  border: 1px solid var(--dsw-alias-interactive-primary, #2563eb);
+}
+
+.task {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: inherit;
+  font-size: 11px;
+  color: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.task:hover {
+  text-decoration: underline;
+}
+
+.age {
+  flex: none;
+  font-size: 10px;
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.ok {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--dsw-alias-state-warn-primary, #d97706);
+  border-radius: 5px;
+}
+
+.ok:hover {
+  background: var(--dsw-alias-interactive-bg-hover, #e8eefb);
+}
+
+.detail {
+  margin: 2px 0 2px 4px;
+  word-break: break-all;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.ref {
+  color: var(--dsw-alias-label-secondary, #64748b);
+}
+
+.note {
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.copy,
+.more,
+.undoBtn {
+  padding: 1px 8px;
+  margin-top: 3px;
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-radius: 5px;
+}
+
+.more {
+  width: 100%;
+}
+
+.error {
+  color: var(--dsw-alias-state-danger-primary, #dc2626);
+}
+
+.undo {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 8px;
+  margin-top: 6px;
+  background: var(--dsw-alias-bg-layer-3, #fff);
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-radius: 6px;
+}
+
+.undoText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.undoBtn {
+  margin-top: 0;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.undoHint {
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}
