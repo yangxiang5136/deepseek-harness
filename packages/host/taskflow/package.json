@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-host-taskflow",
-  "description": "TaskFlow attention-ledger data plane: Remote read (and later seal) over the bus events.jsonl",
+  "description": "TaskFlow attention-ledger data plane: monthly Remote reads and exact audited seals",
   "version": "0.1.0-rc.5",
   "publishConfig": {
     "access": "public"

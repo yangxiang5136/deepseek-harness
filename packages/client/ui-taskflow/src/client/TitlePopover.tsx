@@ -22,8 +22,14 @@ export interface TitlePopoverProps {
   seal: TaskFlowFace['seal']
 }
 
-/** Per-debt seal progress, keyed by the needs-you `ts` pin. */
+/** Per-debt seal progress, keyed by its stable or legacy composite identity. */
 type SealState = 'busy' | 'sealed' | { failed: string }
+
+function debtKey(debt: NeedsYouItem): string {
+  return debt.eventId === undefined
+    ? `legacy\u0000${debt.project}\u0000${debt.task}\u0000${debt.ts}\u0000${debt.ledgerIndex}`
+    : `id\u0000${debt.eventId}`
+}
 
 /**
  * The single intake popover behind the TaskFlow title (v19/v20): three groups
@@ -37,23 +43,23 @@ export function TitlePopover({ model, now, overflow, seal }: TitlePopoverProps):
   const [copied, setCopied] = useState<CopyState | null>(null)
 
   const sealOne = (debt: NeedsYouItem): void => {
-    setSealStates(prev => ({ ...prev, [debt.ts]: 'busy' }))
+    const key = debtKey(debt)
+    setSealStates(prev => ({ ...prev, [key]: 'busy' }))
     void seal({
       project: debt.project,
       task: debt.task,
       resolvesTs: debt.ts,
+      ...(debt.eventId === undefined ? {} : { resolvesEventId: debt.eventId }),
       confirmationRef: SEAL_CONFIRMATION_REF,
     }).then(
       (outcome) => {
         setSealStates(prev => ({
-          ...prev,
-          [debt.ts]: outcome.sealed ? 'sealed' : { failed: outcome.message ?? 'seal refused' },
+          ...prev, [key]: outcome.sealed ? 'sealed' : { failed: outcome.message ?? 'seal refused' },
         }))
       },
       (reason: unknown) => {
         setSealStates(prev => ({
-          ...prev,
-          [debt.ts]: { failed: reason instanceof Error ? reason.message : String(reason) },
+          ...prev, [key]: { failed: reason instanceof Error ? reason.message : String(reason) },
         }))
       },
     )
@@ -69,11 +75,12 @@ export function TitlePopover({ model, now, overflow, seal }: TitlePopoverProps):
         <>
           <div className={css.group}>待收口</div>
           {model.needsYou.map((debt) => {
-            const state = sealStates[debt.ts]
+            const key = debtKey(debt)
+            const state = sealStates[key]
             const ref = typeof debt.payload?.ref === 'string' ? debt.payload.ref : null
             const note = typeof debt.payload?.note === 'string' ? debt.payload.note : null
             return (
-              <div key={debt.ts}>
+              <div key={key}>
                 <div className={css.item}>
                   <span className={css.key}>{debt.kind}</span>
                   <span className={css.value}>
@@ -113,7 +120,7 @@ export function TitlePopover({ model, now, overflow, seal }: TitlePopoverProps):
         <>
           <div className={css.group}>无心跳</div>
           {dead.map(item => (
-            <div key={`${item.task}:${item.lastTs}`} className={css.item}>
+            <div key={`${item.project}\u0000${item.task}\u0000${item.lastTs}`} className={css.item}>
               <span className={css.key}>静默</span>
               <span className={css.value}>
                 {`${item.task} · ${fmtDur(now - item.lastTs)} 无事件`}
@@ -126,7 +133,7 @@ export function TitlePopover({ model, now, overflow, seal }: TitlePopoverProps):
         <>
           <div className={css.group}>更多 running</div>
           {overflow.map(chip => (
-            <div key={`${chip.task}:${chip.start}`} className={css.item}>
+            <div key={`${chip.project}\u0000${chip.task}\u0000${chip.start}`} className={css.item}>
               <span className={css.key}>{chip.src}</span>
               <span className={css.value}>
                 {chip.task + (chip.ticks !== undefined && chip.ticks > 0 ? ` ×${chip.ticks}` : '')}

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-15-taskflow-attention-bar.md
-2026-08-15-taskflow-attention-bar.md: 6030a0a46b411bb9d336a939fdcecf45bdb0fda0
-2026-08-15-taskflow-attention-bar.zh.md: c50dcf657d86a20472f0deb6850ff69709de7811
+2026-08-15-taskflow-attention-bar.md: 3cc5de549203268990d95a0899450b950c96b1aa
+2026-08-15-taskflow-attention-bar.zh.md: 6c4e215a8ab000ecd46223d557a93a82195a5fb5

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactElement } from 'react'
 import {
-  buildTimeline, fmtDur, MODEL_W, paletteColor,
+  buildTimeline, displayProject, fmtDur, MODEL_W, paletteColor,
   type FoldModel, type TextMeasure, type TimelineItem,
 } from './fold.ts'
 import type { ClickPop } from './interaction.ts'
@@ -22,11 +22,14 @@ export interface HistoryStripProps {
   onTogglePop: (pop: ClickPop | null) => void
 }
 
-/** Stable hover identity across 10 s refolds (task+start, not array index). */
+/** Stable hover identity across 10 s refolds, including project identity. */
 function itemId(it: TimelineItem): string {
-  if (it.kind === 'seg') return `s:${it.seg.task}:${it.seg.start}`
-  if (it.kind === 'pack') return `p:${it.pack.prefix}:${it.idx}`
-  return `a:${it.frags[0]?.start ?? 0}`
+  if (it.kind === 'seg') return `s:${it.seg.project}\u0000${it.seg.task}\u0000${it.seg.start}`
+  if (it.kind === 'pack') return `p:${it.pack.project}\u0000${it.pack.prefix}\u0000${it.idx}`
+  const first = it.frags[0]
+  return first === undefined
+    ? 'a:empty'
+    : `a:${first.project}\u0000${first.task}\u0000${first.start}`
 }
 
 /**
@@ -122,7 +125,7 @@ export function HistoryStrip({ model, now, measure, stripW, clickPop, onTogglePo
     const innerStyle: CSSProperties = expanded
       ? { width: wCss, ...extendLeft ? { left: 'auto', right: 0 } : {} }
       : {}
-    if (it.kind === 'seg') innerStyle.background = paletteColor(it.seg.project)
+    if (it.kind === 'seg') innerStyle.background = paletteColor(displayProject(it.seg.project))
 
     // v17 paste-back: a segment closed within the last minute arrives visibly.
     const fresh = it.kind === 'seg'
@@ -142,11 +145,11 @@ export function HistoryStrip({ model, now, measure, stripW, clickPop, onTogglePo
       let content: ReactElement[]
       if (it.kind === 'seg') {
         const seg = it.seg
-        const sameTask = model.history.filter(s => s.task === seg.task)
+        const sameTask = model.history.filter(s => s.project === seg.project && s.task === seg.task)
         const totalDur = sameTask.reduce((a, s) => a + s.dur, 0)
         content = [
           <PopRow key="task" k="任务">{seg.task}</PopRow>,
-          <PopRow key="project" k="project">{seg.project}</PopRow>,
+          <PopRow key="project" k="project">{displayProject(seg.project)}</PopRow>,
           <PopRow key="total" k="累计">{fmtDur(totalDur)}</PopRow>,
           <PopRow key="count" k="段数">{`${sameTask.length} 段`}</PopRow>,
           <PopRow key="surface" k="surface">{seg.surface}</PopRow>,
