@@ -11,7 +11,7 @@
   display: flex;
   gap: 2px;
   align-items: stretch;
-  height: 36px;
+  height: 28px;
   padding: 2px 0;
   overflow: visible;
   background: var(--dsw-alias-bg-layer-1, #f8fafc);
@@ -22,7 +22,7 @@
 .outer {
   position: relative;
   flex: 0 0 auto;
-  height: 32px;
+  height: 28px;
 }
 
 .inner {
@@ -36,7 +36,7 @@
   width: 100%;
   padding: 0 4px;
   overflow: hidden;
-  font-size: 10px;
+  font: var(--tf-font-meta);
   white-space: nowrap;
   cursor: pointer;
   border: 1px solid rgb(255 255 255 / 70%);
@@ -70,7 +70,7 @@
 
 .agg {
   justify-content: center;
-  color: #475569;
+  color: #64748b;
   background: #e8ecf2;
 }
 
@@ -80,7 +80,6 @@
 
 .pack {
   justify-content: center;
-  font-weight: 500;
   color: #3b4a63;
   background: linear-gradient(180deg, #eaf0f8, #dce6f2);
 }
@@ -118,7 +117,7 @@
 }
 
 .empty {
-  padding: 8px;
-  font-size: 11px;
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  padding: 6px 8px;
+  font: var(--tf-font-hint);
+  color: var(--tf-ink-3);
 }

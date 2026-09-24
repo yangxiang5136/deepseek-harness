@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-TaskFlow 底部状态条是 frame 级 `shell.overlay` 槽位的第一个正式住户：收起态为 30px 迷你条，展开为规格 §6 v3.0 定义的注意力表面，包含低饱和时间史条、运行芯片行，以及收纳待收口、无心跳泳道和溢出项的标题浮层。事实经 `taskflow` Remote 命名空间（`@deepseek-ai/dsh-host-taskflow`）来自总线账本，每 10 秒重新折算。时间史、当前任务、后台任务与泳道仍按当天折算；`needs-you` 欠账按全账本折算，可跨日、跨月保留。v2 欠账只允许精确的 schema-v2 resolver 关闭：`dsh` 审计 `done` seal，或 note 以 `Superseded` 开头的 `drop` 撤回。旧 v1 欠账的 60 秒启发只读取旧 terminal 行，未来普通 v2 terminal 不能关闭它。收口勾在可用时发送目标 `event_id`，并以 `dsh-ui:seal-click` 记录确认出处。状态条把实时高度以 `--dsh-shell-bottom-clearance` 发布到 shell frame，使 ui-layout 内容止于条上沿。
+TaskFlow 底部状态条是 frame 级 `shell.overlay` 槽位的第一个正式住户：收起态为 30px 迷你条，展开为规格 §6 v3.0 定义的注意力表面，包含低饱和时间史条、运行芯片行，以及收纳待收口、无心跳泳道和溢出项的标题浮层。事实经 `taskflow` Remote 命名空间（`@deepseek-ai/dsh-host-taskflow`）来自总线账本，每 10 秒重新折算。时间史、当前任务、后台任务与泳道仍按当天折算；`needs-you` 欠账按全账本折算，可跨日、跨月保留。v2 欠账只允许精确的 schema-v2 resolver 关闭：`dsh` 审计 `done` seal，或 note 以 `Superseded` 开头的 `drop` 撤回。旧 v1 欠账的 60 秒启发只读取旧 terminal 行，未来普通 v2 terminal 不能关闭它。收口勾在可用时发送目标 `event_id`，并以 `dsh-ui:seal-click` 记录确认出处。状态条把实时高度以 `--dsh-shell-bottom-clearance` 发布到 shell frame，使 ui-layout 内容止于条上沿。字号统一为五档（主角 15 / 名称 13 / 元信息 12 / 按钮与标签 12 / 提示 11px，`--tf-font-*` 定义在状态条上，`typeScale.ts` 同步），字号跟着重要程度走：当前任务、「待你收口」和「重心偏到分支」的判断在各自区域里最醒目。
 
 点「待你收口」里的项目名，会铺开这个项目的树（TaskFlow 里的 Branch Compass）：近 7 天主线与分支的时长比例，分支占多数时标出「重心偏到分支」；主线上每条未了结的分支从它开始的位置岔出（进行中、无动静、等你处理或停放）；主线在「现在」之后接上这个项目在总线 todo 里的待办。已了结的分支不画，只计入比例和一行汇总。主线由人按项目指定（鼠标移到任务行上浮现「设为主线」小按钮；存在浏览器 `localStorage`），未指定时默认近 7 天最活跃的任务。点托盘里的一行，或项目树上等你处理 / 停放的状态牌，打开的是同一张详情卡：现状、收口入口、说明、提出后的最新动态、最近几条账本记录；一段可复制的续接 prompt（前因后果、Sean 在这个项目上最近的收口反馈、`att` 记账命令，任意 AI 都能接着做并让 TaskFlow 同步状态）；以及可附一行留言的收口——留言就是给 AI 的反馈，以后接手这个项目的 AI 开工前会读到。标题浮层只剩无心跳泳道和溢出芯片，待收口只在托盘里。`park` 欠账（停放的支线）不进收口托盘和运行行，只出现在项目树上。
 
@@ -16,5 +16,5 @@ TaskFlow 底部状态条是 frame 级 `shell.overlay` 槽位的第一个正式�
 
 ## 已知限制与暂缓事项
 
-- **标签适配判定尺度混用**——文字宽度已是真实测量（canvas `measureText`，回退 `estTextW`），芯片行宽为实测；但时间史条的标签放不放得下仍对 900px 比例模型比较，非渲染像素。
+- **几何尺寸靠手工对齐 CSS**——文字按所属字号角色测量（canvas `measureText`，回退 `estTextW`），行宽与时间条宽为实测；但 `ProjectPanel.tsx` 的 SVG 树常量与 `fold.ts` 的 `CHIP` 芯片盒模型是手抄的 CSS 数值，只有字号变量（`TF_TYPE`）和芯片最大宽度有测试锁定。
 - **队列动作不在范围内**（规格 §6 v3.0 动作表）。

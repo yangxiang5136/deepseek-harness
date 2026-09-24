@@ -12,11 +12,12 @@ process.env.TZ = 'America/New_York'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
-  activeSpan, buildChips, buildModel, buildTimeline, CHIP_ROW_W, chipW, estTextW, fmtDur,
+  activeSpan, buildChips, buildModel, buildTimeline, CHIP, CHIP_ROW_W, chipW, estTextW, fmtDur,
   IDLE_PAUSE_MS, interruptedLanes, LANE_IDLE_MS, LEGACY_CLOSE_MS, noHeartbeat, displayProject, normalizeProject, PALETTE, paletteColor,
   parseLedgerText, parseTs, splitChips, strLcp, toToken,
   type AttentionEvent, type Chip,
 } from '../src/client/fold.ts'
+import { TF_TYPE } from '../src/client/typeScale.ts'
 
 /** Noon-anchored base instant: hour-scale offsets stay inside one local day. */
 const T0 = Date.parse('2026-08-15T08:00:00-04:00')
@@ -579,7 +580,7 @@ describe('chips and width-driven overflow (v21)', () => {
   it('always shows the first chip and splits the rest by the row width', () => {
     const chip = (task: string): Chip => ({ kind: 'run', src: 'dsh', task, project: 'p', start: T0 })
     const wide = chip('宽'.repeat(200))
-    // The 150px CSS max-width caps even a huge task label…
+    // The lane max-width (CHIP.laneMax, CSS max-width) caps even a huge task label…
     expect(chipW(wide)).toBeLessThan(300)
     // …so overflow is the row's doing, not the label's: a narrow row keeps
     // only the always-shown first chip.
@@ -592,13 +593,50 @@ describe('chips and width-driven overflow (v21)', () => {
     expect(chipW(narrow[0]!)).toBeGreaterThan(0)
   })
 
-  it('mirrors rendered chip geometry: paused suffix in, task capped, source scaled', () => {
+  it('mirrors rendered chip geometry: paused pill in, task capped, source measured at its own size', () => {
     const base: Chip = { kind: 'cur', src: 's', task: '任务', project: 'p', start: T0 }
-    // The paused suffix renders on the chip, so it must be measured.
+    // The paused 闲置 pill renders on the chip, so it must be measured.
     expect(chipW({ ...base, paused: true })).toBeGreaterThan(chipW(base))
     const huge = (): number => 5_000
-    // Task side capped at 150 (CSS max-width); source tag scaled 9px/10px.
-    expect(chipW(base, huge)).toBe(7 + 5 + 150 + 5 + (5_000 * 0.9 + 12) + 18 + 6)
+    // Task side capped at the current chip's CSS max-width; the source tag is
+    // measured at its own (hint) size, no ratio.
+    expect(chipW(base, huge)).toBe(
+      CHIP.dot + CHIP.gap + CHIP.curMax + CHIP.gap + (5_000 + 2 * CHIP.srcPadX)
+      + 2 * CHIP.padX + 2 * CHIP.border + CHIP.rowGap,
+    )
+  })
+
+  it('measures each chip text at the type role it renders at', () => {
+    const calls: Array<[string, number | undefined, number | undefined]> = []
+    const spy = (text: string, px?: number, weight?: number): number => {
+      calls.push([text, px, weight])
+      return 10
+    }
+    const cur: Chip = { kind: 'cur', src: 'codex', task: '当前', project: 'p', start: T0 }
+    chipW(cur, spy)
+    chipW({ ...cur, paused: true }, spy)
+    chipW({ ...cur, kind: 'run', task: '泳道' }, spy)
+    const { lead, item, hint } = TF_TYPE
+    expect(calls).toEqual([
+      ['当前', lead.px, lead.weight], ['codex', hint.px, hint.weight],
+      ['当前', lead.px, 400], ['闲置', hint.px, hint.weight], ['codex', hint.px, hint.weight],
+      ['泳道', item.px, item.weight], ['codex', hint.px, hint.weight],
+    ])
+  })
+
+  it('reserves room for the +N marker before showing another chip', () => {
+    const lane = (task: string): Chip => ({ kind: 'run', src: 'dsh', task, project: 'p', start: T0 })
+    const chips = [lane('a'), lane('b'), lane('c')]
+    const flat = (): number => 50
+    // Each chip weighs 160px here; '+2' needs 50 + 2 * CHIP.morePadX = 58px.
+    expect(chipW(chips[0]!, flat)).toBe(160)
+    // Budget 330 - 2 * CHIP.rowPadX = 326: two chips (320) would fit alone,
+    // but not beside the '+1' that the third one leaves behind.
+    const { shown, overflow } = splitChips(chips, 330, flat)
+    expect(shown).toHaveLength(1)
+    expect(overflow).toHaveLength(2)
+    // The last chip needs no reserve: all three fit exactly in 3 * 160 plus the row padding.
+    expect(splitChips(chips, 3 * 160 + 2 * CHIP.rowPadX, flat).overflow).toHaveLength(0)
   })
 
   it('threads a custom text measure through splitChips (S4 canvas seat)', () => {
@@ -636,6 +674,10 @@ describe('label helpers', () => {
   it('estTextW weighs CJK double and drives fmtDur-style labels', () => {
     expect(estTextW('中文')).toBe(20)
     expect(estTextW('ab')).toBe(11)
+    expect(estTextW('中文', 13)).toBe(26)
+    expect(estTextW('ab', 12, 600)).toBeCloseTo(13.86)
+    // Hangul, compatibility ideographs, vertical forms, full-width forms: 1em each.
+    expect(estTextW('가豈︰！￠')).toBe(50)
     expect(fmtDur(45_000)).toBe('45s')
     expect(fmtDur(12 * 60_000)).toBe('12m')
     expect(fmtDur(125 * 60_000)).toBe('2h5m')
@@ -733,5 +775,24 @@ describe('theme-token integrity', () => {
       expect(css).not.toContain('var(--dsw-alias-bg,')
       expect(css).toContain('var(--dsw-alias-bg-layer-')
     }
+  })
+})
+
+describe('type-scale lock', () => {
+  const read = (file: string): string => readFileSync(new URL(file, import.meta.url), 'utf8')
+
+  it('keeps the CSS --tf-font-* tokens equal to the TF_TYPE mirror', () => {
+    const css = read('../src/client/TaskFlowBar.module.css')
+    const tokens: Record<string, { px: number; lh: number; weight: number }> = {}
+    for (const [, role, weight, px, lh] of css.matchAll(/--tf-font-(lead|item|meta|ctrl|hint):\s*(\d+) (\d+)px\/(\d+)px/g)) {
+      tokens[String(role)] = { px: Number(px), lh: Number(lh), weight: Number(weight) }
+    }
+    expect(tokens).toEqual(TF_TYPE)
+  })
+
+  it('keeps the chip task max-widths equal to the CHIP mirror', () => {
+    const css = read('../src/client/ChipRow.module.css')
+    expect(css).toMatch(new RegExp(`\\.task \\{\\s*max-width: ${CHIP.laneMax}px;`))
+    expect(css).toMatch(new RegExp(`\\.chip\\[data-kind='cur'\\] \\.task \\{\\s*max-width: ${CHIP.curMax}px;`))
   })
 })

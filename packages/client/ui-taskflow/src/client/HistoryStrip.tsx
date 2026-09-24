@@ -5,8 +5,14 @@ import {
 } from './fold.ts'
 import type { ClickPop } from './interaction.ts'
 import { MemberRow, PopRow } from './PopRows.tsx'
+import { TF_TYPE } from './typeScale.ts'
 import css from './HistoryStrip.module.css'
 import popCss from './popover.module.css'
+
+/** Label room an item needs beyond its text: 4 + 4 padding, 1 + 1 border, 4 slack. */
+const STRIP_PAD = 14
+/** Items narrower than this render colour only; hover and the popover still name them. */
+const STRIP_LABEL_MIN_PX = 28
 
 /**
  * Owner-fed props: the folded model, the clock, the text-width seat (real
@@ -27,6 +33,7 @@ function itemId(it: TimelineItem): string {
   if (it.kind === 'seg') return `s:${it.seg.project}\u0000${it.seg.task}\u0000${it.seg.start}`
   if (it.kind === 'pack') return `p:${it.pack.project}\u0000${it.pack.prefix}\u0000${it.idx}`
   const first = it.frags[0]
+  /* v8 ignore next -- buildTimeline emits an agg item only for a non-empty fragment run. */
   return first === undefined
     ? 'a:empty'
     : `a:${first.project}\u0000${first.task}\u0000${first.start}`
@@ -77,14 +84,17 @@ export function HistoryStrip({ model, now, measure, stripW, clickPop, onTogglePo
     : it.kind === 'agg' ? it.frags.reduce((a, f) => a + f.dur, 0) : it.pack.totalDur
   const itemWPct = (it: TimelineItem): number =>
     ((it.kind === 'seg' ? 24 : 26) + (totalTask > 0 ? (growOf(it) / totalTask) * free : 0)) / MODEL_W * 100
-  const cumPct: number[] = []
+  const labelPx = (label: string): number =>
+    measure(label, TF_TYPE.meta.px, TF_TYPE.meta.weight) + STRIP_PAD
   let acc = 0
-  for (const it of items) {
-    cumPct.push(acc)
-    acc += itemWPct(it)
-  }
+  const layout = items.map((it) => {
+    const wPct = itemWPct(it)
+    const leftPct = acc
+    acc += wPct
+    return { it, wPct, leftPct }
+  })
 
-  const rendered = items.map((it, idx) => {
+  const rendered = layout.map(({ it, wPct, leftPct }, idx) => {
     const id = itemId(it)
     const popOpen = clickPop !== null && clickPop.type !== 'chip' && clickPop.idx === idx
     const toggle = (e: MouseEvent): void => {
@@ -92,31 +102,37 @@ export function HistoryStrip({ model, now, measure, stripW, clickPop, onTogglePo
       onTogglePop(popOpen ? null : { type: it.kind, idx })
     }
     const expanded = hoverId === id && clickPop === null
-    const wPct = itemWPct(it)
+    const itemPx = wPct * stripW / 100
 
+    // Longest form that fits; a series or 零碎 block never shows a label
+    // whose ×N count would be cut (the count is what the short form is for).
+    const fitLabel = (forms: readonly string[]): string =>
+      forms.find(f => itemPx >= labelPx(f)) ?? ''
     let baseLabel: string
     let fullLabel: string
-    let kindCls = ''
+    let kindCls: string | undefined
     if (it.kind === 'agg') {
       const total = it.frags.reduce((a, f) => a + f.dur, 0)
       fullLabel = `零碎 ×${it.frags.length} · ${fmtDur(total)}`
-      baseLabel = wPct * stripW / 100 < measure(fullLabel) + 14 ? `零碎 ×${it.frags.length}` : fullLabel
-      kindCls = css.agg ?? ''
+      baseLabel = fitLabel([fullLabel, `零碎 ×${it.frags.length}`, `×${it.frags.length}`])
+      kindCls = css.agg
     } else if (it.kind === 'pack') {
       const p = it.pack
       fullLabel = `${p.prefix} ×${p.members.length} · ${fmtDur(p.totalDur)}`
-      baseLabel = wPct * stripW / 100 < measure(fullLabel) + 14 ? `${p.prefix} ×${p.members.length}` : fullLabel
-      kindCls = css.pack ?? ''
+      baseLabel = fitLabel([fullLabel, `${p.prefix} ×${p.members.length}`, `×${p.members.length}`])
+      kindCls = css.pack
     } else {
       fullLabel = `${it.seg.task} · ${fmtDur(it.seg.dur)}`
       baseLabel = it.seg.task
-      kindCls = css.seg ?? ''
+      kindCls = css.seg
     }
+    let shownLabel = baseLabel
+    if (expanded) shownLabel = fullLabel
+    else if (itemPx < STRIP_LABEL_MIN_PX) shownLabel = ''
 
     // Hover width: at least the item's own share, at most content/60cqw/room
     // toward the free edge (v14 lower bound; v8 clamp).
-    const contentPx = measure(fullLabel) + 10
-    const leftPct = cumPct[idx] ?? 0
+    const contentPx = labelPx(fullLabel)
     const extendLeft = leftPct + 60 > 100
     const avail = extendLeft ? leftPct + wPct : 100 - leftPct
     const wCss = `max(${wPct.toFixed(2)}cqw, min(${contentPx}px, 60cqw, ${avail.toFixed(1)}cqw))`
@@ -148,7 +164,7 @@ export function HistoryStrip({ model, now, measure, stripW, clickPop, onTogglePo
         const sameTask = model.history.filter(s => s.project === seg.project && s.task === seg.task)
         const totalDur = sameTask.reduce((a, s) => a + s.dur, 0)
         content = [
-          <PopRow key="task" k="任务">{seg.task}</PopRow>,
+          <PopRow key="task" k="任务" subject>{seg.task}</PopRow>,
           <PopRow key="project" k="project">{displayProject(seg.project)}</PopRow>,
           <PopRow key="total" k="累计">{fmtDur(totalDur)}</PopRow>,
           <PopRow key="count" k="段数">{`${sameTask.length} 段`}</PopRow>,
@@ -157,13 +173,13 @@ export function HistoryStrip({ model, now, measure, stripW, clickPop, onTogglePo
       } else if (it.kind === 'pack') {
         const p = it.pack
         content = [
-          <PopRow key="series" k="系列">{`${p.prefix} ×${p.members.length} · ${fmtDur(p.totalDur)}`}</PopRow>,
+          <PopRow key="series" k="系列" subject>{`${p.prefix} ×${p.members.length} · ${fmtDur(p.totalDur)}`}</PopRow>,
           ...p.members.map((m, j) => <MemberRow key={j} seg={m.seg} />),
         ]
       } else {
         const total = it.frags.reduce((a, f) => a + f.dur, 0)
         content = [
-          <PopRow key="agg" k="零碎">{`${it.frags.length} 段 · ${fmtDur(total)}`}</PopRow>,
+          <PopRow key="agg" k="零碎" subject>{`${it.frags.length} 段 · ${fmtDur(total)}`}</PopRow>,
           ...it.frags.map((f, j) => <MemberRow key={j} seg={f} />),
         ]
       }
@@ -189,7 +205,7 @@ export function HistoryStrip({ model, now, measure, stripW, clickPop, onTogglePo
         onClick={toggle}
       >
         <div className={innerCls} style={innerStyle}>
-          <span className={css.label}>{expanded ? fullLabel : baseLabel}</span>
+          <span className={css.label}>{shownLabel}</span>
         </div>
         {popEl}
       </div>

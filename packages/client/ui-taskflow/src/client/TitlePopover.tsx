@@ -28,11 +28,10 @@ export function TitlePopover({ model, now, overflow }: TitlePopoverProps): React
       {empty && <div className={css.allClear}>一切正常</div>}
       {dead.length > 0 && (
         <>
-          <div className={css.group}>无心跳</div>
+          <div className={`${css.group} ${css.alarm}`}>无心跳</div>
           {dead.map(item => (
             <div key={`${item.project}\u0000${item.task}\u0000${item.lastTs}`} className={css.item}>
-              <span className={css.key}>静默</span>
-              <span className={css.value}>
+              <span className={`${css.value} ${css.silent}`}>
                 {`${item.task} · ${fmtDur(now - item.lastTs)} 无事件`}
               </span>
             </div>

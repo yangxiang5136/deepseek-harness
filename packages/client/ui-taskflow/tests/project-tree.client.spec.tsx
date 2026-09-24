@@ -56,6 +56,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -381,6 +382,9 @@ describe('project panel in the bar', () => {
     for (const label of ['进行中', '停放', '5小时无动静']) expect(within(panel).getByText(label)).toBeTruthy()
     fireEvent.click(within(panel).getByRole('button', { name: '查看「相邻方向」详情' }))
     expect(within(panel).getByRole('button', { name: '不做了，收口' })).toBeTruthy()
+    // A park card leads with the bare status; its explanation sits on a hint line.
+    expect(within(panel).getByText('停放中')).toBeTruthy()
+    expect(within(panel).getByText('做别的事时停下的相邻方向，还没决定做不做')).toBeTruthy()
     fireEvent.click(within(panel).getByText('关闭'))
     fireEvent.click(within(panel).getByText('只看前 8 条'))
     expect(within(panel).queryByText('进行中')).toBeNull()
@@ -425,6 +429,33 @@ describe('project panel in the bar', () => {
     fireEvent.click(tag)
     fireEvent.click(within(panel).getByText('关闭'))
     expect(within(panel).queryByRole('region', { name: '评审稿 详情' })).toBeNull()
+  })
+
+  it('scrolls a debt card into view when it opens or switches, not on every render', () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    const scroll = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: scroll, configurable: true })
+    renderBar([ev('start', 300, '主线'), debt(100, '甲', 'review'), debt(50, '乙', 'decision')], vi.fn().mockResolvedValue([]))
+    fireEvent.click(screen.getByRole('button', { name: 'ARK' }))
+    const panel = screen.getByRole('region', { name: 'ARK 项目树' })
+
+    fireEvent.click(within(panel).getByRole('button', { name: '查看「甲」详情' }))
+    expect(scroll).toHaveBeenCalledTimes(1)
+    expect(scroll).toHaveBeenCalledWith({ block: 'nearest' })
+    expect(scroll.mock.contexts[0]).toBe(within(panel).getByRole('region', { name: '甲 详情' }))
+
+    fireEvent.change(within(panel).getByRole('textbox'), { target: { value: '备注' } })
+    expect(scroll).toHaveBeenCalledTimes(1)
+    // A refold (the bar's walking clock) rebuilds every debt object; the open
+    // card must not jump back into view on each tick.
+    act(() => { vi.advanceTimersByTime(31_000) })
+    expect(scroll).toHaveBeenCalledTimes(1)
+    fireEvent.click(within(panel).getByRole('button', { name: '查看「乙」详情' }))
+    expect(scroll).toHaveBeenCalledTimes(2)
+    expect(scroll.mock.contexts[1]).toBe(within(panel).getByRole('region', { name: '乙 详情' }))
+    // 甲's note stays with 甲: it must never be sealed as feedback on 乙.
+    expect(within(panel).getByRole<HTMLInputElement>('textbox').value).toBe('')
+    Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
   })
 
   it('reports a failed todo read and an empty week', async () => {

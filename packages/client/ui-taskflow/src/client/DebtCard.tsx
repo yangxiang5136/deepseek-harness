@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react'
+import { useCallback, useState, type ReactElement } from 'react'
 import type { AttentionEvent, NeedsYouItem } from './fold.ts'
 import { buildHandoff, eventLine, fmtStamp } from './handoff.ts'
 import { doCopy, type CopyState } from './interaction.ts'
@@ -40,25 +40,37 @@ export function DebtCard({ debt, label, events, now, onSeal, onClose }: DebtCard
   const why = typeof debt.payload?.note === 'string' ? debt.payload.note : '（未写）'
   const story = handoff.timeline.slice(-CARD_TIMELINE_ROWS)
   const parked = debt.kind === 'park'
+  // Park only: its status carries an explanation in （…）, which moves to a
+  // hint line. Other kinds keep the status whole (custom names the kind there).
+  const parkParts = parked ? /^(.*?)（(.*)）$/.exec(handoff.status) : null
+  const status = parkParts?.[1] ?? handoff.status
+  const statusWhy = parkParts?.[2] ?? null
   const seal = (): void => { onSeal(note) }
+  // The panel mounts one card per debt (keyed), so this runs once per open or
+  // switch — never on a refold — and brings the card into view inside the
+  // height-capped panel. jsdom has no scrollIntoView.
+  const cardRef = useCallback((el: HTMLDivElement | null): void => {
+    if (el !== null && 'scrollIntoView' in el) el.scrollIntoView({ block: 'nearest' })
+  }, [])
 
   return (
-    <div className={css.card} role="region" aria-label={`${debt.task} 详情`}>
+    <div ref={cardRef} className={css.card} role="region" aria-label={`${debt.task} 详情`}>
       <div className={css.cardHead}>
-        <span className={css.cardStatus}>{handoff.status}</span>
+        <span className={css.cardStatus}>{status}</span>
         <span className={css.cardTask}>{debt.task}</span>
         <span className={css.spacer} />
         <button type="button" className={css.btn} onClick={onClose}>关闭</button>
       </div>
+      {statusWhy !== null && <div className={css.cardWhy}>{statusWhy}</div>}
       <dl className={css.facts}>
         <dt>已等</dt>
         <dd>{`${fmtAge(now - debt.t)} · ${fmtStamp(debt.t)} 由 ${debt.surface} 提出`}</dd>
         <dt>收口入口</dt>
         <dd className={css.mono}>{ref}</dd>
         <dt>说明</dt>
-        <dd>{why}</dd>
+        <dd className={css.why}>{why}</dd>
         <dt>最新动态</dt>
-        <dd>{handoff.latest === null ? '提出后还没有新动作' : eventLine(handoff.latest)}</dd>
+        <dd className={css.dim}>{handoff.latest === null ? '提出后还没有新动作' : eventLine(handoff.latest)}</dd>
         <dt>经过</dt>
         <dd>
           <ul className={css.story}>

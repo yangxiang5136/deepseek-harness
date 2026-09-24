@@ -6,12 +6,35 @@
  * not chrome.
  */
 
-.banner {
-  /*
-   * Shared chrome tokens (2026-09-24, after the attention board): 8px
-   * controls, 10px boxes, hairline borders, soft tinted fills — no heavy
-   * outlines. Children (tray, project panel, popover) inherit them.
-   */
+/*
+ * Shared tokens (2026-09-24, after the attention board). `.scale` carries the
+ * same set for the collapsed MiniBar, which renders instead of .banner.
+ *
+ * Type scale — one role per importance step; each step down changes at least
+ * two of size, weight and ink. TypeScript mirror: typeScale.ts TF_TYPE (the
+ * lock test in fold.client.spec.ts keeps both sides equal).
+ *   lead  15/20 600 — the one answer per surface (current task, 待你收口,
+ *                     the lean verdict, the mainline, a card's status)
+ *   item  13/18 500 — names of things (debt titles, chips, branches)
+ *   meta  12/18 400 — supporting data (durations, badges, card facts)
+ *   ctrl  12/16 500 — verbs and chrome labels (buttons, section labels)
+ *   hint  11/16 400 — the floor (keys, empty states, instructions)
+ * Controls: 8px radius; boxes: 10px; hairline borders; soft tinted fills.
+ */
+.banner,
+.scale {
+  --tf-family: var(--dsw-font-family, -apple-system, system-ui, 'PingFang SC', sans-serif);
+  --tf-font-lead: 600 15px/20px var(--tf-family);
+  --tf-font-item: 500 13px/18px var(--tf-family);
+  --tf-font-meta: 400 12px/18px var(--tf-family);
+  --tf-font-ctrl: 500 12px/16px var(--tf-family);
+  --tf-font-hint: 400 11px/16px var(--tf-family);
+  --tf-fw-accent: 600;
+  --tf-ink: var(--dsw-alias-label-primary, #374151);
+  --tf-ink-2: var(--dsw-alias-label-secondary, #475569);
+  --tf-ink-3: var(--tf-quiet);
+  --tf-ctl-h: 24px;
+  --tf-pop-key-w: 50px;
   --tf-main: var(--dsw-alias-state-business-primary, #4176e6);
   --tf-wait: var(--dsw-alias-state-warn-primary, #c98313);
   --tf-live: var(--dsw-alias-state-success-primary, #2f9e6a);
@@ -24,13 +47,18 @@
   --tf-main-edge: color-mix(in srgb, var(--tf-main) 32%, transparent);
   --tf-wait-soft: color-mix(in srgb, var(--tf-wait) 10%, transparent);
   --tf-wait-edge: color-mix(in srgb, var(--tf-wait) 40%, transparent);
+  /* Amber for TEXT: dsh's warn-primary is amber-500 (~2:1 on white), fine
+     for strokes and fills but too faint for the lead-tier words drawn in it. */
+  --tf-wait-ink: color-mix(in srgb, var(--tf-wait) 60%, var(--tf-ink));
+}
+
+.banner {
   position: absolute;
   right: 0;
   bottom: 0;
   left: 0;
-  font-size: 11px;
-  line-height: 1.35;
-  color: var(--dsw-alias-label-primary, #374151);
+  font: var(--tf-font-meta);
+  color: var(--tf-ink);
   pointer-events: auto;
   background: var(--dsw-alias-bg-layer-1, #fff);
   border-top: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
@@ -65,8 +93,8 @@
 }
 
 .title {
-  font-weight: 600;
-  color: var(--dsw-alias-label-primary, #111827);
+  font: var(--tf-font-ctrl);
+  color: var(--tf-ink-2);
   letter-spacing: 0.03em;
   cursor: pointer;
   user-select: none;
@@ -75,7 +103,7 @@
 /* Fail-loud read error, always visible while expanded. */
 .error {
   overflow: hidden;
-  font-size: 10px;
+  font: var(--tf-font-lead);
   color: var(--dsw-alias-state-error-primary, #dc2626);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -85,16 +113,17 @@
   flex: 1;
 }
 
+/* The ▾ glyph is an icon, sized outside the type scale. */
 .collapse {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 26px;
   height: 26px;
-  font-family: inherit;
-  font-size: 18px;
+  font: var(--tf-font-ctrl);
+  font-size: 16px;
   line-height: 1;
-  color: var(--dsw-alias-label-secondary, #475569);
+  color: var(--tf-ink-2);
   cursor: pointer;
   background: var(--dsw-alias-bg-layer-1, #fff);
   border: 1px solid var(--tf-line);
