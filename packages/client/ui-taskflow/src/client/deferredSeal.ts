@@ -23,6 +23,24 @@ export function debtKey(debt: NeedsYouItem): string {
 /** Per-debt state of a deferred seal. */
 export type DeferredState = 'pending' | 'writing' | 'sealed' | { failed: string }
 
+/**
+ * Debts still shown to Sean: everything except seals queued, being written, or
+ * written (a failed seal comes back with its reason). The tray and the
+ * collapsed bar's count both use this, so they never disagree inside the
+ * 撤销 window.
+ * @param debts - open debts from the fold.
+ * @param states - deferred-seal states by {@link debtKey}.
+ * @returns The debts to show.
+ */
+export function shownDebts(
+  debts: readonly NeedsYouItem[], states: Readonly<Record<string, DeferredState>>,
+): NeedsYouItem[] {
+  return debts.filter((debt) => {
+    const state = states[debtKey(debt)]
+    return state === undefined || typeof state === 'object'
+  })
+}
+
 /** What the tray needs from the deferred-seal controller. */
 export interface DeferredSeal {
   /** State by {@link debtKey}; absent means untouched. */

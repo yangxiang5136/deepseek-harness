@@ -7,11 +7,11 @@
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TaskFlowBar, type TaskFlowBarProps } from '../src/client/TaskFlowBar.tsx'
 import { fmtAge, TRAY_COLLAPSED_KEY } from '../src/client/NeedsYouTray.tsx'
-import { SEAL_UNDO_MS } from '../src/client/deferredSeal.ts'
+import { SEAL_UNDO_MS, useDeferredSeal } from '../src/client/deferredSeal.ts'
 import type { TaskFlowFace } from '../src/client/face.ts'
 import type { TaskflowLedgerState } from '../src/client/ledger.ts'
 import { groupDebtsByProject, parseLedgerText, type NeedsYouItem } from '../src/client/fold.ts'
@@ -129,6 +129,19 @@ describe('NeedsYouTray', () => {
     })
   })
 
+  it('keeps the collapsed count in step with the tray inside the undo window', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const seal = vi.fn().mockResolvedValue({ sealed: true, message: null })
+    renderBar(LEDGER, seal)
+    fireEvent.click(screen.getByRole('button', { name: '收口 数字一' }))
+    fireEvent.click(screen.getByText('▾'))
+    expect(screen.getByRole('img', { name: '待你收口 4' }).textContent).toBe('4')
+    fireEvent.click(screen.getByRole('img', { name: '待你收口 4' }))
+    fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+    fireEvent.click(screen.getByText('▾'))
+    expect(screen.getByRole('img', { name: '待你收口 5' })).toBeTruthy()
+  })
+
   it('writes the seal only after the undo window, and undo cancels it', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const seal = vi.fn().mockResolvedValue({ sealed: true, message: null })
@@ -159,6 +172,52 @@ describe('NeedsYouTray', () => {
     fireEvent.click(screen.getByRole('button', { name: '收口 数字一' }))
     fireEvent.click(screen.getByRole('button', { name: '收口 方舟一' }))
     expect(screen.getByRole('status').textContent).toContain('已收口 2 条，最近：方舟一')
+  })
+
+  it.each([
+    ['still writing', () => new Promise<never>(() => {}), 4],
+    ['sealed', () => Promise.resolve({ sealed: true, message: null }), 4],
+    ['refused', () => Promise.resolve({ sealed: false, message: 'no-open-needs-you' }), 5],
+    ['failed', () => Promise.reject(new Error('down')), 5],
+  ] as const)('keeps the collapsed count equal to the tray after the undo window (%s)', async (_state, outcome, expected) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    renderBar(LEDGER, vi.fn(outcome))
+    fireEvent.click(screen.getByRole('button', { name: '收口 数字一' }))
+    await act(async () => { vi.advanceTimersByTime(SEAL_UNDO_MS + 10) })
+    const trayCount = screen.getByRole('region', { name: '待你收口' }).querySelector('button span:nth-child(2)')?.textContent
+    expect(trayCount).toBe(String(expected))
+    fireEvent.click(screen.getByText('▾'))
+    expect(screen.getByRole('img', { name: `待你收口 ${expected}` }).textContent).toBe(String(expected))
+  })
+
+  it('queues one seal per debt and ignores an undo for a debt that is not pending', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const seal = vi.fn().mockResolvedValue({ sealed: true, message: null })
+    const [first, second] = parseLedgerText([debtLine('ARK', '一', 5), debtLine('ARK', '二', 4)].join('\n'))
+      .map((e, ledgerIndex): NeedsYouItem => ({ ...e, ledgerIndex, kind: 'review', owed: 0 }))
+    const { result } = renderHook(() => useDeferredSeal(seal, 100))
+    act(() => { result.current.queue(first!) })
+    act(() => { result.current.queue(first!) })
+    act(() => { result.current.undo(second!) })
+    expect(result.current.pendingCount).toBe(1)
+    await act(async () => { vi.advanceTimersByTime(150) })
+    expect(seal).toHaveBeenCalledTimes(1)
+  })
+
+  it('brings a row back when the seal call itself fails or is refused without a reason', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const seal = vi.fn()
+      .mockRejectedValueOnce(new Error('wire down'))
+      .mockRejectedValueOnce('boom')
+      .mockResolvedValueOnce({ sealed: false, message: null })
+    renderBar(LEDGER, seal)
+    fireEvent.click(screen.getByRole('button', { name: '收口 数字一' }))
+    fireEvent.click(screen.getByRole('button', { name: '收口 方舟一' }))
+    fireEvent.click(screen.getByRole('button', { name: '收口 方舟三' }))
+    await act(async () => { vi.advanceTimersByTime(SEAL_UNDO_MS + 10) })
+    expect(screen.getByText('收口失败：wire down')).toBeTruthy()
+    expect(screen.getByText('收口失败：boom')).toBeTruthy()
+    expect(screen.getByText('收口失败：seal refused')).toBeTruthy()
   })
 
   it('brings a row back with the reason when the host refuses the seal', async () => {

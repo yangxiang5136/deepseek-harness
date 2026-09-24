@@ -12,7 +12,7 @@ import { NeedsYouTray } from './NeedsYouTray.tsx'
 import { ProjectPanel, type TodoState } from './ProjectPanel.tsx'
 import { buildProjectTree, readPins, writePins } from './projectTree.ts'
 import { todosForProject } from './todo.ts'
-import { useDeferredSeal } from './deferredSeal.ts'
+import { shownDebts, useDeferredSeal } from './deferredSeal.ts'
 import { TitlePopover } from './TitlePopover.tsx'
 import css from './TaskFlowBar.module.css'
 
@@ -171,6 +171,7 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
       <MiniBar
         model={model}
         now={now}
+        debtCount={shownDebts(model.needsYou, sealer.states).length}
         loading={!ledger.read}
         error={ledger.error}
         onExpand={() => { setCollapsed(false) }}

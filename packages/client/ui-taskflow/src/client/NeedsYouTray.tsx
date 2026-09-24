@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactElement } from 'react'
 import { displayProject, groupDebtsByProject, paletteColor, type NeedsYouItem } from './fold.ts'
-import { debtKey, type DeferredSeal } from './deferredSeal.ts'
+import { debtKey, shownDebts, type DeferredSeal } from './deferredSeal.ts'
 import css from './NeedsYouTray.module.css'
 
 /** Rows shown per project column before 还有 N 条 (Sean, 2026-09-23). */
@@ -73,10 +73,7 @@ export function NeedsYouTray({
   const [openProjects, setOpenProjects] = useState<Record<string, boolean>>({})
 
   const visible = useMemo(
-    () => debts.filter((debt) => {
-      const state = sealer.states[debtKey(debt)]
-      return state === undefined || typeof state === 'object'
-    }),
+    () => shownDebts(debts, sealer.states),
     [debts, sealer.states],
   )
   const groups = useMemo(() => groupDebtsByProject(visible), [visible])
