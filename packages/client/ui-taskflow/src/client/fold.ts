@@ -140,9 +140,18 @@ export interface FoldModel {
   lanes: Lane[]
   /** Preempted-but-unterminated session tasks (decision ㉕). */
   background: BackgroundTask[]
-  /** Open debts, longest-owed first. */
+  /** Open debts, longest-owed first; parked side-branches excluded. */
   needsYou: NeedsYouItem[]
+  /**
+   * Open `park` debts (支线停放位), longest-parked first. Same exact-resolution
+   * rules as any needs-you, but kept out of the tray and the running rows —
+   * only the project tree shows them.
+   */
+  parked: NeedsYouItem[]
 }
+
+/** The needs-you kind for a parked side-branch (protocol v2.1). */
+export const PARK_KIND = 'park'
 
 /**
  * Parse one ledger `ts`. Both `-04:00` and `-0400` offsets appear in the real
@@ -579,22 +588,25 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
     }
   }
   needsYou.sort((a, b) => b.owed - a.owed)
+  const parked = needsYou.filter(n => n.kind === PARK_KIND)
+  const owed = needsYou.filter(n => n.kind !== PARK_KIND)
   // v17: a lane whose debt is open leaves the running row — the debt entry
   // in the title popover takes over (never shown twice).
   for (const lane of lanes) {
-    if (needsYou.some(n => n.project === lane.project
+    if (owed.some(n => n.project === lane.project
       && (n.task === lane.delegateTask
         || (lane.labelTask !== null && n.task === lane.labelTask)))) lane.status = 'taken'
   }
   // Decision ㉕: same single-presentation rule for background tasks.
   background = background.filter(b =>
-    !needsYou.some(n => n.project === b.project && n.task === b.task))
+    !owed.some(n => n.project === b.project && n.task === b.task))
   return {
     history: segments,
     current,
     lanes: lanes.filter(l => l.status !== 'closed' && l.status !== 'taken'),
     background,
-    needsYou,
+    needsYou: owed,
+    parked,
   }
 }
 

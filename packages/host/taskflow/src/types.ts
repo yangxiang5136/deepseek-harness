@@ -39,3 +39,21 @@ export interface TaskflowSealResult {
   /** The appended JSON line on success; null otherwise. */
   line: string | null
 }
+
+/** One project todo file from the bus todo directory, raw. */
+export interface TaskflowTodoFile {
+  /** File name, e.g. `ARK.md`; the client maps it to a ledger project. */
+  name: string
+  /** Raw markdown text; the client extracts open items. */
+  text: string
+}
+
+/** One-shot read of the bus todo projects directory. */
+export interface TaskflowTodoSnapshot {
+  /** Absolute directory the host read. */
+  dir: string
+  /** False when the directory does not exist (a legitimate empty state). */
+  exists: boolean
+  /** Regular `*.md` files in name order; symlinks and other entries are skipped. */
+  files: TaskflowTodoFile[]
+}

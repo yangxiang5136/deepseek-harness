@@ -3,10 +3,11 @@
  * entry rendering the attention surface (spec §6 v3.0). Facts arrive through
  * the `taskflow` Remote namespace — the ledger observable polls `read()`
  * every {@link REFRESH_MS} and the popover's checkmark drives the audited
- * `seal()` gate; the fold itself is pure client code over the raw JSONL.
+ * `seal()` gate; opening a project reads `todos()` for its tree. The fold
+ * itself is pure client code over the raw JSONL.
  */
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
-import type { TaskflowSealRequest } from '@deepseek-ai/dsh-api-remotes/client'
+import type { TaskflowSealRequest, TaskflowTodoFile } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the ui-layout SlotMap merge (the shell.overlay list slot).
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
@@ -58,11 +59,17 @@ export function apply(ctx: ClientContext): void {
     return { sealed: true, message: null }
   }
 
+  const todos = async (): Promise<TaskflowTodoFile[]> => {
+    const answered = await ctx.remote.taskflow.todos()
+    if (!answered.ok) throw new Error(`${answered.error.code}: ${answered.error.message}`)
+    return answered.value.files
+  }
+
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
     id: 'taskflow-bar',
     order: 100,
-    inject: (): TaskFlowFace => ({ hooks: { ledger }, seal }),
+    inject: (): TaskFlowFace => ({ hooks: { ledger }, seal, todos }),
   }, TaskFlowBar))
 
   ledger.refresh()

@@ -9,6 +9,9 @@ import { ChipRow } from './ChipRow.tsx'
 import { HistoryStrip } from './HistoryStrip.tsx'
 import { MiniBar } from './MiniBar.tsx'
 import { NeedsYouTray } from './NeedsYouTray.tsx'
+import { ProjectPanel, type TodoState } from './ProjectPanel.tsx'
+import { buildProjectTree, readPins, writePins } from './projectTree.ts'
+import { todosForProject } from './todo.ts'
 import { useDeferredSeal } from './deferredSeal.ts'
 import { TitlePopover } from './TitlePopover.tsx'
 import css from './TaskFlowBar.module.css'
@@ -50,12 +53,15 @@ function createMeasure(): TextMeasure {
  * the composer-height precedent, pointed the other way: the consumer is an
  * ancestor, so the property is set where inheritance can reach it.
  */
-export function TaskFlowBar({ useLedger, seal }: TaskFlowBarProps): ReactElement {
+export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): ReactElement {
   const ledger = useLedger(s => s)
   const [collapsed, setCollapsed] = useState(true)
   const [now, setNow] = useState(() => Date.now())
   const [clickPop, setClickPop] = useState<ClickPop | null>(null)
   const [titleOpen, setTitleOpen] = useState(false)
+  const [openProject, setOpenProject] = useState<string | null>(null)
+  const [pins, setPins] = useState(readPins)
+  const [todoState, setTodoState] = useState<TodoState>({ status: 'loading' })
 
   // The walking clock: minutes-scale labels advance between ledger refreshes.
   // REFRESH_MS-driven refolds arrive through the ledger hook itself.
@@ -123,6 +129,25 @@ export function TaskFlowBar({ useLedger, seal }: TaskFlowBarProps): ReactElement
     () => splitChips(buildChips(model), leftW ?? CHIP_ROW_W, measure),
     [model, leftW, measure],
   )
+  // Opening a project reads the todo files once; a stale answer for a project
+  // that was closed or switched meanwhile is discarded.
+  useEffect(() => {
+    if (openProject === null) return
+    let live = true
+    setTodoState({ status: 'loading' })
+    todos().then(
+      (files) => { if (live) setTodoState({ status: 'ready', items: todosForProject(files, openProject) }) },
+      (error: unknown) => {
+        if (live) setTodoState({ status: 'error', message: error instanceof Error ? error.message : '读取失败' })
+      },
+    )
+    return () => { live = false }
+  }, [openProject, todos])
+  const tree = useMemo(
+    () => openProject === null ? null : buildProjectTree(ledger.events, model, openProject, pins[openProject], now),
+    [openProject, ledger.events, model, pins, now],
+  )
+
   // Bar-owned so collapsing the tray or the whole bar never drops a seal
   // that is still inside its 撤销 window.
   const sealer = useDeferredSeal(seal)
@@ -194,7 +219,25 @@ export function TaskFlowBar({ useLedger, seal }: TaskFlowBarProps): ReactElement
           />
         </div>
       </div>
-      <NeedsYouTray debts={model.needsYou} sealer={sealer} />
+      {tree !== null && (
+        <ProjectPanel
+          tree={tree}
+          now={now}
+          todos={todoState}
+          onPin={(task) => {
+            const next = { ...pins, [tree.label]: task }
+            setPins(next)
+            writePins(next)
+          }}
+          onClose={() => { setOpenProject(null) }}
+        />
+      )}
+      <NeedsYouTray
+        debts={model.needsYou}
+        sealer={sealer}
+        openProject={openProject}
+        onToggleProject={(project) => { setOpenProject(openProject === project ? null : project) }}
+      />
     </div>
   )
 }

@@ -20,12 +20,14 @@ import {
   isCanonicalUuid,
   readLedgerFile,
   readMonthlyLedgers,
+  readTodoFiles,
 } from './ledger.ts'
 import { formatSealLine, isNeedsYouOpenAt, parseLedger } from './seal.ts'
 import type {
   TaskflowLedgerSnapshot,
   TaskflowSealRequest,
   TaskflowSealResult,
+  TaskflowTodoSnapshot,
 } from './types.ts'
 
 const SEAL_CONFIRMATION_REF = 'dsh-ui:seal-click'
@@ -60,6 +62,16 @@ function attentionDirectory(): string {
     ?? join(homedir(), 'my-memories', 'attention')
 }
 
+/**
+ * Bus todo projects directory (`todo/projects/*.md`). The env override exists
+ * for tests and non-standard bus mounts, like the ledger's.
+ * @returns Directory the gateway reads todo files from.
+ */
+export function todoDirectory(): string {
+  return process.env.DSH_TASKFLOW_TODO_DIR
+    ?? join(homedir(), 'my-memories', 'todo', 'projects')
+}
+
 async function readLedger(): Promise<TaskflowLedgerSnapshot> {
   const override = process.env.DSH_TASKFLOW_LEDGER
   return override === undefined
@@ -82,6 +94,16 @@ export class TaskflowLedgerGateway extends TypertRemoteService {
   @Remote('read')
   async read(): Promise<TaskflowLedgerSnapshot> {
     return readLedger()
+  }
+
+  /**
+   * Read the bus todo project files raw; item extraction and the file →
+   * project mapping live in the browser half with the rest of the fold.
+   * @returns Todo file texts; `exists` false only when the directory is missing.
+   */
+  @Remote('todos')
+  async todos(): Promise<TaskflowTodoSnapshot> {
+    return readTodoFiles(todoDirectory())
   }
 
   /**

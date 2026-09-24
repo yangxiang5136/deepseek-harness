@@ -9,7 +9,7 @@ import type { FileHandle } from 'node:fs/promises'
 import { hostname } from 'node:os'
 import { basename, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
-import type { TaskflowLedgerSnapshot } from './types.ts'
+import type { TaskflowLedgerSnapshot, TaskflowTodoSnapshot } from './types.ts'
 
 const MONTH_FILE = /^events-\d{4}-(?:0[1-9]|1[0-2])\.jsonl$/
 const LOCK_RETRY_MS = 25
@@ -23,7 +23,7 @@ const PROJECTS = new Set([
   'PhD Dissertation', 'digital-me', 'TaskFlow', 'my-memories',
   'job', 'life-admin', 'machine', 'ARK', 'MSC_AI', 'blacksburg-secondhand',
 ])
-const NEEDS_YOU_KINDS = new Set(['merge', 'decision', 'review'])
+const NEEDS_YOU_KINDS = new Set(['merge', 'decision', 'review', 'park'])
 const ROOT_FIELDS = new Set([
   'schema_version', 'event_id', 'ts', 'surface', 'project', 'task', 'event', 'payload',
 ])
@@ -275,6 +275,34 @@ export async function readMonthlyLedgers(directory: string): Promise<TaskflowLed
     .join('')
   const mtimeMs = Math.max(directoryInfo.mtimeMs, ...files.map(file => file.mtimeMs))
   return { path: directory, exists: true, mtimeMs, text }
+}
+
+const TODO_FILE = /^[^.][^/]*\.md$/
+
+/**
+ * Read the bus todo projects directory: every regular `*.md` file in name
+ * order. Symlinks and non-files are skipped so a link cannot pull an
+ * arbitrary file into the board. A missing directory is an empty state.
+ * @param directory - todo projects directory.
+ * @returns Raw file texts, or a missing snapshot for ENOENT.
+ */
+export async function readTodoFiles(directory: string): Promise<TaskflowTodoSnapshot> {
+  let entries: Dirent[]
+  try {
+    entries = await readdir(directory, { withFileTypes: true })
+  } catch (error: unknown) {
+    if (isCode(error, 'ENOENT')) return { dir: directory, exists: false, files: [] }
+    throw error
+  }
+  const names = entries
+    .filter(entry => entry.isFile() && TODO_FILE.test(entry.name))
+    .map(entry => entry.name)
+    .sort()
+  const files = await Promise.all(names.map(async name => ({
+    name,
+    text: await readFile(join(directory, name), 'utf8'),
+  })))
+  return { dir: directory, exists: true, files }
 }
 
 interface LockOwner {
