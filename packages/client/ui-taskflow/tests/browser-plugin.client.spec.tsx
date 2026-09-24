@@ -449,13 +449,23 @@ const LANE: Lane = {
 }
 
 describe('MiniBar label', () => {
-  function miniBar(model: FoldModel, loading = false) {
-    return <MiniBar model={model} now={10 * MIN} loading={loading} onExpand={() => {}} rootRef={() => {}} />
+  function miniBar(model: FoldModel, loading = false, debtCount = 0) {
+    return <MiniBar model={model} now={10 * MIN} loading={loading} debtCount={debtCount} onExpand={() => {}} rootRef={() => {}} />
   }
 
   function mini(model: FoldModel, loading = false) {
     return render(miniBar(model, loading))
   }
+
+  it('counts debts waiting in the tray at the right edge, digit only', () => {
+    const view = render(miniBar(modelOf({ current: CURRENT }), false, 3))
+    const pill = screen.getByRole('img', { name: '待你收口 3' })
+    expect(pill.textContent).toBe('3')
+    view.rerender(miniBar(modelOf({ current: CURRENT }), false, 0))
+    expect(screen.queryByRole('img', { name: /待你收口/ })).toBeNull()
+    view.rerender(miniBar(modelOf({ current: CURRENT }), true, 3))
+    expect(screen.queryByRole('img', { name: /待你收口/ })).toBeNull()
+  })
 
   it('carries the shared type tokens while collapsed (no banner ancestor)', () => {
     const { container } = mini(modelOf({ current: CURRENT }))

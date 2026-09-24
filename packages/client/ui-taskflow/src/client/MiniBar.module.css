@@ -102,3 +102,24 @@
   font: var(--tf-font-lead);
   color: var(--dsw-alias-state-error-primary, #dc2626);
 }
+
+/* Debt count at the right edge (clear of the 2px .now marker): digit only,
+   amber like the tray's count, on an opaque ground above the strip. It takes
+   hover (for its title) and lets clicks bubble to .mini's expand. */
+.debt {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  z-index: 3;
+  box-sizing: border-box;
+  min-width: 24px;
+  padding: 1px 8px;
+  font: var(--tf-font-ctrl);
+  font-weight: var(--tf-fw-accent);
+  color: var(--tf-wait-ink);
+  text-align: center;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  border: 1px solid var(--tf-wait-edge);
+  border-radius: 999px;
+  transform: translateY(-50%);
+}
