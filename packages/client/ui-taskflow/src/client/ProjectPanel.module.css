@@ -1,0 +1,236 @@
+/*
+ * Project tree panel (Branch Compass inside TaskFlow, 2026-09-24). Chrome and
+ * strokes ride the --dsw-* aliases so both themes work; blue is the mainline,
+ * amber a branch waiting on you, green a live branch, grey parked or quiet.
+ */
+
+.panel {
+  --tf-main: var(--dsw-alias-state-business-primary, #4176e6);
+  --tf-wait: var(--dsw-alias-state-warn-primary, #c98313);
+  --tf-live: var(--dsw-alias-state-success-primary, #2f9e6a);
+  --tf-quiet: var(--dsw-alias-label-tertiary, #9ca3af);
+  padding: 6px 12px 8px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-primary, #374151);
+  border-top: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+}
+
+.name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.lean {
+  font-weight: 600;
+  color: var(--tf-wait);
+}
+
+.error {
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.meter {
+  display: flex;
+  width: 120px;
+  height: 6px;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-layer-2, #f3f4f6);
+  border-radius: 3px;
+}
+
+.meterMain {
+  background: var(--tf-main);
+}
+
+.meterBranch {
+  background: var(--tf-wait);
+}
+
+.pin {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.pin select {
+  max-width: 220px;
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.close,
+.link {
+  padding: 0;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.close:hover,
+.link:hover {
+  text-decoration: underline;
+}
+
+.graph {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  max-height: 32vh;
+  margin-top: 6px;
+  overflow: auto;
+}
+
+.graph svg {
+  display: block;
+}
+
+.graph text {
+  font-family: inherit;
+}
+
+.mainLabel {
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--tf-main);
+}
+
+.branchLabel {
+  font-size: 11px;
+  fill: var(--dsw-alias-label-primary, #374151);
+}
+
+.sub {
+  font-size: 9.5px;
+  fill: var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.main {
+  fill: none;
+  stroke: var(--tf-main);
+  stroke-width: 2;
+}
+
+.future {
+  fill: none;
+  stroke: var(--tf-quiet);
+  stroke-dasharray: 4 4;
+  stroke-width: 1.5;
+}
+
+.mainNode {
+  fill: var(--dsw-alias-bg-layer-1, #fff);
+  stroke: var(--tf-main);
+  stroke-width: 1.6;
+}
+
+.branchNode {
+  fill: var(--dsw-alias-bg-layer-1, #fff);
+  stroke: var(--tf-quiet);
+  stroke-width: 1.4;
+}
+
+.todoNode {
+  fill: var(--dsw-alias-bg-layer-1, #fff);
+  stroke: var(--tf-quiet);
+  stroke-dasharray: 2 2;
+  stroke-width: 1.4;
+}
+
+.edgeWait,
+.edgeLive,
+.edgePark,
+.edgeQuiet {
+  fill: none;
+  stroke-width: 1.4;
+}
+
+.edgeWait {
+  stroke: var(--tf-wait);
+}
+
+.edgeLive {
+  stroke: var(--tf-live);
+}
+
+.edgePark {
+  stroke: var(--tf-quiet);
+  stroke-dasharray: 3 3;
+}
+
+.edgeQuiet {
+  stroke: var(--tf-quiet);
+}
+
+.tagWait,
+.tagLive,
+.tagPark,
+.tagQuiet {
+  fill: var(--dsw-alias-bg-layer-1, #fff);
+  stroke-width: 1;
+}
+
+.tagWait {
+  stroke: var(--tf-wait);
+}
+
+.tagLive {
+  stroke: var(--tf-live);
+}
+
+.tagPark {
+  stroke: var(--tf-quiet);
+  stroke-dasharray: 3 2;
+}
+
+.tagQuiet {
+  stroke: var(--dsw-alias-border-l2, #e5e7eb);
+}
+
+.tagText {
+  font-size: 10px;
+  fill: var(--dsw-alias-label-secondary, #6b7280);
+}
+
+.foot {
+  display: flex;
+  gap: 14px;
+  margin-top: 2px;
+}
+
+.settled {
+  padding: 0 0 0 14px;
+  margin: 2px 0;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+}
+
+.todos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.todo {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

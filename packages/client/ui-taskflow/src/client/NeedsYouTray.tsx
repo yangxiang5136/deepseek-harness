@@ -46,6 +46,10 @@ const KIND_LABEL: Readonly<Record<string, string>> = { decision: '决定', revie
 export interface NeedsYouTrayProps {
   debts: readonly NeedsYouItem[]
   sealer: DeferredSeal
+  /** Display project whose tree is open, if any (its name shows pressed). */
+  openProject: string | null
+  /** Toggle a project's tree from its column head. */
+  onToggleProject: (project: string) => void
 }
 
 /**
@@ -53,12 +57,13 @@ export interface NeedsYouTrayProps {
  * bar, one column per project (busiest first, longest-owed first inside), so
  * sealing no longer hides behind the title popover. Each column shows
  * {@link TRAY_ROWS_PER_PROJECT} rows until expanded; a row's title opens its
- * ref and note; the checkmark queues a deferred seal with a 撤销 window. The
- * tray folds to its header and remembers that choice.
+ * ref and note; the checkmark queues a deferred seal with a 撤销 window; a
+ * project name opens that project's tree. The tray folds to its header and
+ * remembers that choice.
  * @param props - debts plus the deferred seal controller.
  * @returns The tray element.
  */
-export function NeedsYouTray({ debts, sealer }: NeedsYouTrayProps): ReactElement {
+export function NeedsYouTray({ debts, sealer, openProject, onToggleProject }: NeedsYouTrayProps): ReactElement {
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [openProjects, setOpenProjects] = useState<Record<string, boolean>>({})
   const [detail, setDetail] = useState<string | null>(null)
@@ -101,7 +106,15 @@ export function NeedsYouTray({ debts, sealer }: NeedsYouTrayProps): ReactElement
                   <div key={group.project} className={css.col}>
                     <div className={css.colHead}>
                       <span className={css.dot} style={{ background: paletteColor(group.project) }} />
-                      <span className={css.project}>{group.project}</span>
+                      <button
+                        type="button"
+                        className={css.project}
+                        title="铺开这个项目的主线与分支"
+                        aria-pressed={openProject === group.project}
+                        onClick={() => { onToggleProject(group.project) }}
+                      >
+                        {group.project}
+                      </button>
                       <span className={css.colCount}>{group.items.length}</span>
                     </div>
                     {rows.map((debt) => {

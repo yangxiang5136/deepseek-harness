@@ -12,7 +12,7 @@ import type { TypertClientRemote } from '@deepseek-ai/dsh-typert-protocol'
 export type { TypertClientRemote as ClientRemote } from '@deepseek-ai/dsh-typert-protocol'
 export type { PluginInventorySnapshot } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 export type {
-  TaskflowLedgerSnapshot, TaskflowSealRequest, TaskflowSealResult,
+  TaskflowLedgerSnapshot, TaskflowSealRequest, TaskflowSealResult, TaskflowTodoFile, TaskflowTodoSnapshot,
 } from '@deepseek-ai/dsh-host-taskflow/types'
 export type {} from '@deepseek-ai/dsh-commands/remote'
 export type {} from '@deepseek-ai/dsh-goal/remote'

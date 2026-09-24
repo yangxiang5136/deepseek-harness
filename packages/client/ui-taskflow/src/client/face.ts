@@ -1,6 +1,6 @@
 /** The bar's injected business face (registered at the shell.overlay entry). */
 
-import type { TaskflowSealRequest } from '@deepseek-ai/dsh-api-remotes/client'
+import type { TaskflowSealRequest, TaskflowTodoFile } from '@deepseek-ai/dsh-api-remotes/client'
 import type { TaskflowLedgerSource } from './ledger.ts'
 
 /** Business outcome of a seal click; wire and host refusals both land here. */
@@ -23,4 +23,9 @@ export interface TaskFlowFace {
    * @returns Business outcome; never throws for business refusals.
    */
   seal(request: TaskflowSealRequest): Promise<TaskflowSealOutcome>
+  /**
+   * Read the bus todo project files for the project tree's "after now" nodes.
+   * @returns Raw todo files; rejects with a user-readable message on failure.
+   */
+  todos(): Promise<TaskflowTodoFile[]>
 }

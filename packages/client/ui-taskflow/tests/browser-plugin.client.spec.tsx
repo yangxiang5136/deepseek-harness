@@ -10,7 +10,9 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
-import type { TaskflowLedgerSnapshot, TaskflowSealResult } from '@deepseek-ai/dsh-api-remotes/client'
+import type {
+  TaskflowLedgerSnapshot, TaskflowSealResult, TaskflowTodoSnapshot,
+} from '@deepseek-ai/dsh-api-remotes/client'
 import { apply, inject } from '../src/client/index.ts'
 import { TaskFlowBar, type TaskFlowBarProps } from '../src/client/TaskFlowBar.tsx'
 import { HistoryStrip } from '../src/client/HistoryStrip.tsx'
@@ -62,6 +64,7 @@ function ledgerLine(event: string, ts: string, over: Record<string, unknown> = {
 async function bench(overrides: {
   read?: () => Promise<Wire<TaskflowLedgerSnapshot>>
   seal?: () => Promise<Wire<TaskflowSealResult>>
+  todos?: () => Promise<Wire<TaskflowTodoSnapshot>>
 } = {}) {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
@@ -81,8 +84,13 @@ async function bench(overrides: {
       ok: true as const,
       value: { sealed: true as const, reason: null, line: '{}' },
     })))
-  ctx.provide('remote.taskflow', { read, seal })
-  return { ctx, slots: ctx.get('slots') as SlotRegistry, read, seal }
+  const todos = vi.fn(overrides.todos
+    ?? (() => Promise.resolve({
+      ok: true as const,
+      value: { dir: '/bus/todo/projects', exists: true, files: [{ name: 'ARK.md', text: '- [ ] 地推' }] },
+    })))
+  ctx.provide('remote.taskflow', { read, seal, todos })
+  return { ctx, slots: ctx.get('slots') as SlotRegistry, read, seal, todos }
 }
 
 function declare(slots: SlotRegistry): void {
@@ -135,6 +143,23 @@ describe('ui-taskflow browser plugin', () => {
     expect(await face.seal(request)).toEqual({ sealed: true, message: null })
     // A successful seal refolds immediately instead of waiting for the poll.
     expect(b.read.mock.calls.length).toBeGreaterThan(before)
+    await b.ctx.fiber.dispose()
+  })
+
+  it('reads todo files through the face and names a wire failure', async () => {
+    const b = await bench({
+      todos: vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          value: { dir: '/bus/todo/projects', exists: true, files: [{ name: 'ARK.md', text: '- [ ] 地推' }] },
+        })
+        .mockResolvedValueOnce({ ok: false, error: { code: 'REMOTE_ERROR', message: 'down' } }),
+    })
+    declare(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const face = (b.slots.entries('shell.overlay')[0]!.inject as unknown as () => TaskFlowFace)()
+    expect(await face.todos()).toEqual([{ name: 'ARK.md', text: '- [ ] 地推' }])
+    await expect(face.todos()).rejects.toThrow('REMOTE_ERROR: down')
     await b.ctx.fiber.dispose()
   })
 
@@ -242,6 +267,7 @@ describe('TaskFlowBar surface', () => {
       lanes: [],
       background: [],
       needsYou: [],
+      parked: [],
     }
     render(
       <HistoryStrip

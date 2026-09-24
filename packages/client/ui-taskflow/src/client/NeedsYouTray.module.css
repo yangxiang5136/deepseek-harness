@@ -85,9 +85,25 @@
 }
 
 .project {
+  min-width: 0;
+  padding: 0;
   overflow: hidden;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  color: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dashed var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.project:hover,
+.project[aria-pressed='true'] {
+  color: var(--dsw-alias-state-business-primary, #4176e6);
+  border-bottom-color: currentcolor;
 }
 
 .colCount {

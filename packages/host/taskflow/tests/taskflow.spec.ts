@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import {
   chmod, mkdir, mkdtemp, readFile, readlink, rmdir, stat, symlink, unlink, writeFile,
 } from 'node:fs/promises'
-import { hostname, tmpdir } from 'node:os'
+import { homedir, hostname, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -15,9 +15,11 @@ import TaskflowLedgerGateway, {
   isNeedsYouOpenAt,
   LEGACY_CLOSE_MS,
   parseLedger,
+  todoDirectory,
 } from '../src/index.ts'
 import {
   acquireLedgerLock, appendLedgerLine, assertSafeLedgerAlias, readLedgerFile, readMonthlyLedgers,
+  readTodoFiles,
 } from '../src/ledger.ts'
 
 const contexts: Context[] = []
@@ -28,6 +30,7 @@ afterEach(async () => {
   await Promise.all(contexts.splice(0).map(ctx => ctx.fiber.dispose()))
   delete process.env.DSH_TASKFLOW_LEDGER
   delete process.env.DSH_TASKFLOW_ATTENTION_DIR
+  delete process.env.DSH_TASKFLOW_TODO_DIR
   vi.useRealTimers()
 })
 
@@ -478,6 +481,42 @@ describe('ledger reads', () => {
   })
 })
 
+describe('todo reads', () => {
+  it('returns regular markdown files in name order and skips links and other entries', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'taskflow-todo-'))
+    await writeFile(join(dir, 'job.md'), 'job')
+    await writeFile(join(dir, 'ARK.md'), 'ark')
+    await writeFile(join(dir, 'notes.txt'), 'skip')
+    await writeFile(join(dir, '.hidden.md'), 'skip')
+    await mkdir(join(dir, 'sub.md'))
+    await symlink(join(dir, 'job.md'), join(dir, 'linked.md'))
+    expect(await readTodoFiles(dir)).toEqual({
+      dir,
+      exists: true,
+      files: [{ name: 'ARK.md', text: 'ark' }, { name: 'job.md', text: 'job' }],
+    })
+  })
+
+  it('reports a missing directory as empty and rejects other failures', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'taskflow-todo-missing-'))
+    expect(await readTodoFiles(join(dir, 'none'))).toEqual({ dir: join(dir, 'none'), exists: false, files: [] })
+    await writeFile(join(dir, 'file'), '')
+    await expect(readTodoFiles(join(dir, 'file'))).rejects.toBeInstanceOf(Error)
+  })
+})
+
+describe('park debts', () => {
+  it('accepts a schema-v2 needs-you with kind park', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'taskflow-park-'))
+    const path = join(dir, 'events-2026-09.jsonl')
+    const park = line('needs-you', T0, {
+      schema_version: 2, event_id: DEBT_ID, payload: { kind: 'park', ref: 'session', note: '相邻方向' },
+    })
+    await writePrivateLedger(path, `${park}\n`)
+    expect((await readMonthlyLedgers(dir)).text).toBe(`${park}\n`)
+  })
+})
+
 describe('shared ledger lock', () => {
   it('writes the Python-compatible owner lease and times out on a live owner', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'taskflow-lock-'))
@@ -611,8 +650,21 @@ describe('TaskflowLedgerGateway', () => {
     expect(gateway.typertRemote).toMatchObject({ serviceKey: 'taskflow', namespace: 'taskflow' })
     expect(remoteMethods(gateway)).toEqual([
       { method: 'read', invocation: { kind: 'direct' } },
+      { method: 'todos', invocation: { kind: 'direct' } },
       { method: 'seal', invocation: { kind: 'direct' } },
     ])
+  })
+
+  it('reads todo project files through the todos remote', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'taskflow-todo-remote-'))
+    await writeFile(join(dir, 'ARK.md'), '- [ ] 方舟地推\n')
+    const { gateway } = await harness('')
+    process.env.DSH_TASKFLOW_TODO_DIR = dir
+    expect(await gateway.todos()).toEqual({
+      dir, exists: true, files: [{ name: 'ARK.md', text: '- [ ] 方舟地推\n' }],
+    })
+    delete process.env.DSH_TASKFLOW_TODO_DIR
+    expect(todoDirectory()).toBe(join(homedir(), 'my-memories', 'todo', 'projects'))
   })
 
   it('keeps the exact-file override controllable for tests', async () => {
