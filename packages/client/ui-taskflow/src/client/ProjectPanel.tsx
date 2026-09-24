@@ -1,5 +1,6 @@
-import { useState, type ReactElement } from 'react'
-import { fmtDur, type NeedsYouItem } from './fold.ts'
+import { useState, type KeyboardEvent, type ReactElement } from 'react'
+import { DebtCard } from './DebtCard.tsx'
+import { fmtDur, type AttentionEvent, type NeedsYouItem } from './fold.ts'
 import { fmtAge } from './NeedsYouTray.tsx'
 import { TREE_WINDOW_MS, type ProjectTree, type TreeTask } from './projectTree.ts'
 import type { TaskflowTodoItem } from './todo.ts'
@@ -22,6 +23,8 @@ const ROW0_Y = 58
 const ROW_H = 24
 const TAG_W = 62
 const TODO_STEP = 104
+const PIN_W = 52
+const PIN_X = LABEL_W - PIN_W - 4
 
 const WAIT_LABEL: Readonly<Record<string, string>> = { decision: '等你决定', review: '等你审阅', merge: '等你合并' }
 
@@ -31,6 +34,8 @@ export type TodoState = { status: 'loading' } | { status: 'error'; message: stri
 /** Panel props: the folded tree, the todo read, and the pin/close verbs. */
 export interface ProjectPanelProps {
   tree: ProjectTree
+  /** The whole parsed ledger: debt cards tell each task's story from it. */
+  events: readonly AttentionEvent[]
   now: number
   todos: TodoState
   onPin: (task: string) => void
@@ -39,6 +44,19 @@ export interface ProjectPanelProps {
 
 function clip(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}
+
+/**
+ * Make an SVG group behave as a button for keyboard users too.
+ * @param run - the action.
+ * @returns Handler for Enter / Space.
+ */
+function onKey(run: () => void): (e: KeyboardEvent) => void {
+  return (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return
+    e.preventDefault()
+    run()
+  }
 }
 
 function stateTag(task: TreeTask, now: number): { text: string; cls: string } {
@@ -71,9 +89,10 @@ function edgeClass(task: TreeTask): string {
  * @param props - tree, clock, todo read, pin and close verbs.
  * @returns The panel element.
  */
-export function ProjectPanel({ tree, now, todos, onPin, onClose }: ProjectPanelProps): ReactElement {
+export function ProjectPanel({ tree, events, now, todos, onPin, onClose }: ProjectPanelProps): ReactElement {
   const [allRows, setAllRows] = useState(false)
   const [showSettled, setShowSettled] = useState(false)
+  const [cardTask, setCardTask] = useState<string | null>(null)
 
   const total = tree.mainDur + tree.branchDur
   const branchShare = total === 0 ? 0 : Math.round((tree.branchDur / total) * 100)
@@ -93,6 +112,50 @@ export function ProjectPanel({ tree, now, todos, onPin, onClose }: ProjectPanelP
   const settledDone = tree.settled.filter(t => t.state === 'done')
   const settledDur = tree.settled.reduce((sum, t) => sum + t.activeDur, 0)
   const mainTag = tree.main === null ? { text: '近 7 天没动', cls: css.tagQuiet as string } : stateTag(tree.main, now)
+  // The card follows the live fold: once Sean seals the debt it closes itself.
+  const cardDebt = [tree.main, ...tree.branches].find(t => t?.task === cardTask)?.debt ?? null
+  const toggleCard = (task: string): void => { setCardTask(cardTask === task ? null : task) }
+
+  /** The hover-revealed 设为主线 chip at the end of a row's label. */
+  const pinChip = (task: string, y: number, text: string): ReactElement => (
+    <g
+      className={css.pinBtn}
+      role="button"
+      tabIndex={0}
+      aria-label={`把「${task}」设为主线`}
+      onClick={() => { onPin(task) }}
+      onKeyDown={onKey(() => { onPin(task) })}
+    >
+      <rect x={PIN_X} y={y - 9} width={PIN_W} height={18} rx={9} />
+      <text x={PIN_X + PIN_W / 2} y={y + 4} textAnchor="middle">{text}</text>
+    </g>
+  )
+
+  /** A state tag; tags of open debts open their card. */
+  const tagAt = (x: number, y: number, task: TreeTask | null, tag: { text: string; cls: string }): ReactElement => {
+    const opens = task !== null && task.debt !== null
+    const body = (
+      <>
+        <rect x={x} y={y - 9} width={TAG_W} height={18} rx={4} className={tag.cls} />
+        <text x={x + TAG_W / 2} y={y + 4} textAnchor="middle" className={css.tagText}>{tag.text}</text>
+      </>
+    )
+    if (!opens) return body
+    const open = (): void => { toggleCard(task.task) }
+    return (
+      <g
+        className={cardTask === task.task ? `${css.tagBtn} ${css.tagOpen}` : css.tagBtn}
+        role="button"
+        tabIndex={0}
+        aria-label={`查看「${task.task}」详情`}
+        aria-expanded={cardTask === task.task}
+        onClick={open}
+        onKeyDown={onKey(open)}
+      >
+        {body}
+      </g>
+    )
+  }
 
   return (
     <section className={css.panel} aria-label={`${tree.label} 项目树`} onClick={(e) => { e.stopPropagation() }}>
@@ -110,26 +173,18 @@ export function ProjectPanel({ tree, now, todos, onPin, onClose }: ProjectPanelP
             ? <span className={css.lean}>{`分支占 ${branchShare}%，重心偏到分支了`}</span>
             : <span className={css.muted}>{`主线占 ${100 - branchShare}%`}</span>}
         <span className={css.spacer} />
-        {tree.candidates.length > 0 && (
-          <label className={css.pin}>
-            <span className={css.muted}>{tree.pinned ? '主线' : '主线（推测，选一下确认）'}</span>
-            <select
-              id={`taskflow-mainline-${tree.label}`}
-              // Candidates exist only when a mainline was pinned or suggested.
-              value={tree.mainline as string}
-              onChange={(e) => { onPin(e.target.value) }}
-            >
-              {tree.candidates.map(task => <option key={task} value={task}>{task}</option>)}
-            </select>
-          </label>
-        )}
+        {tree.mainline !== null && !tree.pinned && <span className={css.muted}>主线是推测的，鼠标移到任务上可改</span>}
         <button type="button" className={css.close} onClick={onClose}>收起</button>
       </div>
 
       <div className={css.graph}>
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${tree.label} 主线与未了结分支`}>
-          <text x={8} y={MAIN_Y - 3} className={css.mainLabel}>{clip(tree.mainline ?? '还没有任务', 18)}</text>
-          <text x={8} y={MAIN_Y + 10} className={css.sub}>{`主线 · ${fmtDur(tree.mainDur)}`}</text>
+          <g className={css.row}>
+            <rect x={0} y={MAIN_Y - ROW_H / 2} width={LABEL_W} height={ROW_H} className={css.hit} />
+            <text x={8} y={MAIN_Y - 3} className={css.mainLabel}>{clip(tree.mainline ?? '还没有任务', 18)}</text>
+            <text x={8} y={MAIN_Y + 10} className={css.sub}>{`主线 · ${fmtDur(tree.mainDur)}`}</text>
+            {tree.mainline !== null && !tree.pinned && pinChip(tree.mainline, MAIN_Y, '确认主线')}
+          </g>
           <path d={`M${mainStartX} ${MAIN_Y} H${nowX}`} className={css.main} />
           {todoNodes.length > 0 && (
             <path d={`M${nowX + TAG_W + 8} ${MAIN_Y} H${nowX + TAG_W + 8 + todoNodes.length * TODO_STEP - 40}`} className={css.future} />
@@ -139,19 +194,19 @@ export function ProjectPanel({ tree, now, todos, onPin, onClose }: ProjectPanelP
             const fx = xAt(branch.start)
             const tag = stateTag(branch, now)
             return (
-              <g key={branch.task}>
+              <g key={branch.task} className={css.row}>
                 <title>{`${branch.task} · ${branch.surface} · ${fmtDur(branch.activeDur)}`}</title>
+                <rect x={0} y={y - ROW_H / 2} width={width} height={ROW_H} className={css.hit} />
                 <text x={8} y={y + 4} className={css.branchLabel}>{clip(branch.task, 18)}</text>
                 <path d={`M${fx} ${MAIN_Y} V${y - 5} Q${fx} ${y} ${fx + 5} ${y} H${nowX}`} className={edgeClass(branch)} />
                 <circle cx={fx + 14} cy={y} r={3.5} className={css.branchNode} />
-                <rect x={nowX} y={y - 9} width={TAG_W} height={18} rx={4} className={tag.cls} />
-                <text x={nowX + TAG_W / 2} y={y + 4} textAnchor="middle" className={css.tagText}>{tag.text}</text>
+                {tagAt(nowX, y, branch, tag)}
+                {pinChip(branch.task, y, '设为主线')}
               </g>
             )
           })}
           {tree.mainNodes.map((t, i) => <circle key={i} cx={xAt(t)} cy={MAIN_Y} r={3.5} className={css.mainNode} />)}
-          <rect x={nowX} y={MAIN_Y - 9} width={TAG_W} height={18} rx={4} className={mainTag.cls} />
-          <text x={nowX + TAG_W / 2} y={MAIN_Y + 4} textAnchor="middle" className={css.tagText}>{mainTag.text}</text>
+          {tagAt(nowX, MAIN_Y, tree.main, mainTag)}
           {todoNodes.map((item, j) => {
             const cx = nowX + TAG_W + 8 + (j + 1) * TODO_STEP - 52
             return (
@@ -164,6 +219,10 @@ export function ProjectPanel({ tree, now, todos, onPin, onClose }: ProjectPanelP
           })}
         </svg>
       </div>
+
+      {cardDebt !== null && (
+        <DebtCard debt={cardDebt} label={tree.label} events={events} now={now} onClose={() => { setCardTask(null) }} />
+      )}
 
       <div className={css.foot}>
         {tree.branches.length > PANEL_BRANCH_ROWS && (
@@ -180,7 +239,10 @@ export function ProjectPanel({ tree, now, todos, onPin, onClose }: ProjectPanelP
       {showSettled && (
         <ul className={css.settled}>
           {tree.settled.map(t => (
-            <li key={t.task}>{`${t.state === 'done' ? '✓' : '✕'} ${t.task} · ${fmtDur(t.activeDur)}`}</li>
+            <li key={t.task} className={css.settledItem}>
+              {`${t.state === 'done' ? '✓' : '✕'} ${t.task} · ${fmtDur(t.activeDur)}`}
+              <button type="button" className={css.pinInline} onClick={() => { onPin(t.task) }}>设为主线</button>
+            </li>
           ))}
         </ul>
       )}

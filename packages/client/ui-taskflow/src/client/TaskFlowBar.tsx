@@ -222,6 +222,7 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
       {tree !== null && (
         <ProjectPanel
           tree={tree}
+          events={ledger.events}
           now={now}
           todos={todoState}
           onPin={(task) => {

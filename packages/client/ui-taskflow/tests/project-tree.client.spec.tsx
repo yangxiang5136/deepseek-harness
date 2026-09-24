@@ -17,6 +17,7 @@ import {
 } from '../src/client/projectTree.ts'
 import { parseTodoItems, todosForProject, todoTitle } from '../src/client/todo.ts'
 import { PANEL_BRANCH_ROWS, PANEL_TODO_ROWS, ProjectPanel } from '../src/client/ProjectPanel.tsx'
+import { buildHandoff, eventLine, PROMPT_TIMELINE_ROWS, shellArg } from '../src/client/handoff.ts'
 
 const NOW = Date.parse('2026-09-24T12:00:00-04:00')
 const MIN = 60_000
@@ -199,14 +200,62 @@ describe('todo extraction', () => {
   })
 })
 
+describe('handoff prompt', () => {
+  function debtOf(lines: string[], task: string) {
+    const events = parseLedgerText(lines.join('\n'))
+    const model = buildModel(events, NOW)
+    const item = [...model.needsYou, ...model.parked].find(d => d.task === task)
+    if (item === undefined) throw new Error(`no open debt ${task}`)
+    return { events, item }
+  }
+
+  it('tells the story, the ask and the att commands for an aliased park', () => {
+    const history = Array.from({ length: PROMPT_TIMELINE_ROWS + 2 }, (_, i) =>
+      ev('switch', 500 - i, '方向', { project: 'MSC_AI' }))
+    const { events, item } = debtOf([
+      ...history,
+      debt(100, '方向', 'park', { project: 'MSC_AI', payload: { kind: 'park', ref: 'sess_1', note: "Sean's idea" } }),
+      ev('done', 50, '方向', { project: 'MSC_AI', surface: 'dsh', event: 'custom-event', payload: { seal: true } }),
+    ], '方向')
+    const h = buildHandoff(item, 'ARK', events, NOW)
+    expect(h.status).toMatch(/^停放中/)
+    expect(h.latest?.event).toBe('custom-event')
+    expect(h.prompt).toContain('- 项目：ARK（账本里写作 MSC_AI）')
+    expect(h.prompt).toContain('- 说明：Sean\'s idea')
+    expect(h.prompt).toContain('- …更早还有 4 条')
+    expect(h.prompt).toContain('custom-event · Sean 已收口')
+    expect(h.prompt).toContain(`--resolves-event-id ${item.eventId as string}`)
+    expect(h.prompt).toContain("att start '方向' -p 'MSC_AI' -s <你的表面>")
+  })
+
+  it('falls back for legacy ids, unknown kinds and missing fields', () => {
+    const { events, item } = debtOf([
+      JSON.stringify({ ts: new Date(NOW - 60 * MIN).toISOString(), surface: 'codex', project: 'ARK', task: '旧停放', event: 'needs-you', payload: { kind: 'park' } }),
+    ], '旧停放')
+    const h = buildHandoff(item, 'ARK', events, NOW)
+    expect(h.latest).toBeNull()
+    expect(h.prompt).toContain('- 收口入口：（未写）')
+    expect(h.prompt).toContain(`--resolves-ts ${shellArg(item.ts)}`)
+    expect(h.prompt).not.toContain('账本里写作')
+
+    const other = debtOf([debt(10, '怪', 'odd')], '怪')
+    expect(buildHandoff(other.item, 'ARK', other.events, NOW).prompt).not.toContain('撤回这条停放')
+    expect(eventLine({ ...other.item, event: 'needs-you', payload: null })).toMatch(/等 Sean$/)
+  })
+
+  it('quotes shell arguments that carry apostrophes', () => {
+    expect(shellArg("it's")).toBe("'it'\\''s'")
+  })
+})
+
 describe('project panel on its own', () => {
   it('renders an empty project without a mainline picker and lists a dropped branch', () => {
     const onPin = vi.fn()
     const empty = treeOf([])
     const { unmount } = render(
-      <ProjectPanel tree={empty} now={NOW} todos={{ status: 'ready', items: [] }} onPin={onPin} onClose={vi.fn()} />,
+      <ProjectPanel tree={empty} events={[]} now={NOW} todos={{ status: 'ready', items: [] }} onPin={onPin} onClose={vi.fn()} />,
     )
-    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(screen.queryByRole('button', { name: /设为主线/ })).toBeNull()
     expect(screen.getByText('还没有任务')).toBeTruthy()
     unmount()
 
@@ -214,7 +263,7 @@ describe('project panel on its own', () => {
       ev('start', 30, '主线'), ev('start', 20, '放掉的'), ev('drop', 10, '放掉的'),
       debt(5, '一个名字特别特别长以至于要被截断的分支任务', 'review'),
     ], '主线')
-    render(<ProjectPanel tree={tree} now={NOW} todos={{ status: 'loading' }} onPin={onPin} onClose={vi.fn()} />)
+    render(<ProjectPanel tree={tree} events={[]} now={NOW} todos={{ status: 'loading' }} onPin={onPin} onClose={vi.fn()} />)
     fireEvent.click(screen.getByText(/已了结 1 条（完成 0）/))
     expect(screen.getByText(/✕ 放掉的/)).toBeTruthy()
     expect(screen.getByText(/^一个名字特别.*…$/)).toBeTruthy()
@@ -257,15 +306,33 @@ describe('project panel in the bar', () => {
     expect(within(panel).getByText(/09-28/)).toBeTruthy()
     expect(within(panel).getByText('还有 2 条')).toBeTruthy()
     // Unpinned, the most active task stands in as the mainline.
-    expect(within(panel).getByText('主线（推测，选一下确认）')).toBeTruthy()
+    expect(within(panel).getByText('主线是推测的，鼠标移到任务上可改')).toBeTruthy()
     expect(within(panel).getByText('主线占 57%')).toBeTruthy()
     expect(within(panel).getByText('等你合并')).toBeTruthy()
     expect(within(panel).getByText('等你收口')).toBeTruthy()
 
-    fireEvent.change(within(panel).getByRole('combobox'), { target: { value: '主线' } })
+    // Confirm the suggestion from the mainline row's hover chip (keyboard).
+    const confirm = within(panel).getByRole('button', { name: '把「大分支」设为主线' })
+    fireEvent.keyDown(confirm, { key: 'a' })
+    expect(readPins()).toEqual({})
+    fireEvent.keyDown(confirm, { key: 'Enter' })
+    expect(readPins()).toEqual({ ARK: '大分支' })
+    expect(within(panel).queryByText('主线是推测的，鼠标移到任务上可改')).toBeNull()
+
+    // Pin a settled task from the 已了结 list.
+    fireEvent.click(within(panel).getByText(/已了结 1 条/))
+    const settledRow = within(panel).getByText(/✓ 主线/)
+    fireEvent.click(within(settledRow).getByText('设为主线'))
     expect(readPins()).toEqual({ ARK: '主线' })
     expect(within(panel).getByText('分支占 57%，重心偏到分支了')).toBeTruthy()
     expect(within(panel).getByText('已完成')).toBeTruthy()
+
+    // A branch row's chip pins by mouse; the waiting mainline tag opens its card.
+    fireEvent.click(within(panel).getByRole('button', { name: '把「奇怪类型」设为主线' }))
+    expect(readPins()).toEqual({ ARK: '奇怪类型' })
+    fireEvent.click(within(panel).getByRole('button', { name: '查看「奇怪类型」详情' }))
+    expect(within(panel).getByRole('region', { name: '奇怪类型 详情' })).toBeTruthy()
+    expect(within(panel).getByText('等 Sean 处理（custom）')).toBeTruthy()
 
     fireEvent.click(within(panel).getByText('收起'))
     expect(screen.queryByRole('region', { name: 'ARK 项目树' })).toBeNull()
@@ -303,6 +370,43 @@ describe('project panel in the bar', () => {
     expect(within(panel).getByText(/✓ 做完/)).toBeTruthy()
   })
 
+  it('opens a debt card from its tag, copies the prompt, and closes it', async () => {
+    renderBar([
+      ev('start', 300, '主线'),
+      ev('start', 200, '评审稿', { surface: 'codex' }),
+      debt(100, '评审稿', 'review', { surface: 'codex', payload: { kind: 'review', ref: '~/draft.md', note: '看第二节' } }),
+      ev('start', 20, '评审稿', { surface: 'claude-code' }),
+    ], vi.fn().mockResolvedValue([]))
+    window.localStorage.setItem(MAINLINE_PINS_KEY, JSON.stringify({ ARK: '主线' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ARK' }))
+    const panel = screen.getByRole('region', { name: 'ARK 项目树' })
+    const tag = within(panel).getByRole('button', { name: '查看「评审稿」详情' })
+    fireEvent.keyDown(tag, { key: ' ' })
+    const card = within(panel).getByRole('region', { name: '评审稿 详情' })
+    expect(tag.getAttribute('aria-expanded')).toBe('true')
+    expect(within(card).getByText('等 Sean 审阅')).toBeTruthy()
+    expect(within(card).getByText('~/draft.md')).toBeTruthy()
+    expect(within(card).getByText('看第二节')).toBeTruthy()
+    expect(within(card).queryByText('提出后还没有新动作')).toBeNull()
+    expect(within(card).getAllByText(/claude-code 开工/).length).toBeGreaterThan(0)
+
+    // jsdom has no clipboard: the card asks for a manual copy.
+    fireEvent.click(within(card).getByText('复制 prompt'))
+    await within(card).findByText('复制失败，请手动选中下面的文字')
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    fireEvent.click(within(card).getByText('复制 prompt'))
+    await within(card).findByText('已复制 ✓')
+    expect(writeText.mock.calls[0]?.[0]).toMatch(/^# 续接任务：评审稿/)
+    Reflect.deleteProperty(navigator, 'clipboard')
+
+    fireEvent.click(tag)
+    expect(within(panel).queryByRole('region', { name: '评审稿 详情' })).toBeNull()
+    fireEvent.click(tag)
+    fireEvent.click(within(panel).getByText('关闭'))
+    expect(within(panel).queryByRole('region', { name: '评审稿 详情' })).toBeNull()
+  })
+
   it('reports a failed todo read and an empty week', async () => {
     renderBar([debt(8 * 24 * 60, '旧账', 'review')], vi.fn().mockRejectedValue(new Error('down')))
     fireEvent.click(screen.getByRole('button', { name: 'ARK' }))
@@ -314,11 +418,13 @@ describe('project panel in the bar', () => {
 
   it('names a non-Error rejection and marks a quiet pinned mainline', async () => {
     window.localStorage.setItem(MAINLINE_PINS_KEY, JSON.stringify({ ARK: '安静的主线' }))
-    renderBar([debt(10, '欠账', 'review')], vi.fn().mockRejectedValue('nope'))
+    renderBar([debt(10, '欠账', 'review', { payload: { kind: 'review' } })], vi.fn().mockRejectedValue('nope'))
     fireEvent.click(screen.getByRole('button', { name: 'ARK' }))
     const panel = screen.getByRole('region', { name: 'ARK 项目树' })
     await within(panel).findByText('待办读取失败：读取失败')
     expect(within(panel).getByText('近 7 天没动')).toBeTruthy()
+    fireEvent.click(within(panel).getByRole('button', { name: '查看「欠账」详情' }))
+    expect(within(panel).getAllByText('（未写）')).toHaveLength(2)
   })
 
   it('drops a todo answer that arrives after the panel closed', async () => {
