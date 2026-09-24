@@ -42,11 +42,15 @@
   position: absolute;
   top: 50%;
   z-index: 3;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
   max-width: 55%;
   padding: 2px 8px;
   overflow: hidden;
-  font-size: 12px;
-  color: var(--dsw-alias-label-secondary, #475569);
+  font: var(--tf-font-meta);
+  line-height: 20px;
+  color: var(--tf-ink-2);
   text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
@@ -56,10 +60,45 @@
   transform: translateY(-50%);
 }
 
-.paused {
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
+/* The only shrinkable part: ellipsis eats the task tail, never the minutes or +N. */
+.task {
+  min-width: 0;
+  overflow: hidden;
+  font: var(--tf-font-lead);
+  color: var(--tf-ink);
+  text-overflow: ellipsis;
+}
+
+.meta {
+  flex: none;
+  font: var(--tf-font-meta);
+  color: var(--tf-ink-2);
+}
+
+.paused .task {
+  font-weight: 400;
+  color: var(--tf-ink-2);
+}
+
+.state {
+  flex: none;
+  padding: 0 6px;
+  font: var(--tf-font-hint);
+  color: var(--tf-ink-3);
+  background: color-mix(in srgb, var(--tf-ink-3) 14%, transparent);
+  border-radius: 999px;
+}
+
+/* Loading / nothing running: quiet text, never a pill that reads as a task. */
+/* Quiet, but on an opaque ground: the strip's pastel segments sit under the
+   label in both themes, and ink-3 alone is unreadable on them in dark mode. */
+.placeholder {
+  color: var(--tf-ink-3);
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  border-color: transparent;
 }
 
 .error {
+  font: var(--tf-font-lead);
   color: var(--dsw-alias-state-error-primary, #dc2626);
 }

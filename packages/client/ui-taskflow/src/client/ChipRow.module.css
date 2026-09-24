@@ -1,10 +1,15 @@
-/* Running chip row (prototype v20/v21): discrete objects, no length semantics. */
+/*
+ * Running chip row (prototype v20/v21): discrete objects, no length semantics.
+ * Dot size, gaps, paddings, borders and the task max-widths are mirrored in
+ * fold.ts CHIP for the overflow split; change both sides together.
+ * No overflow on .row or .chip: the chip drill-down popover opens above them.
+ */
 
 .row {
   display: flex;
   gap: 6px;
   align-items: center;
-  height: 28px;
+  min-height: 30px;
   padding: 0 2px;
 }
 
@@ -12,12 +17,9 @@
   position: relative;
   display: inline-flex;
   flex: 0 0 auto;
-  gap: 5px;
+  gap: 6px;
   align-items: center;
-  padding: 3px 8px;
-  overflow: hidden;
-  font-size: 10px;
-  color: var(--dsw-alias-label-primary, #374151);
+  padding: 2px 10px;
   white-space: nowrap;
   cursor: pointer;
   background: var(--dsw-alias-bg-layer-1, #f8fafc);
@@ -33,13 +35,27 @@
   border-color: var(--dsw-alias-border-l2, #d1d5db);
 }
 
+.chip[data-kind='cur'] {
+  background: var(--tf-main-soft);
+  border-color: var(--tf-main-edge);
+}
+
+.chip[data-kind='cur']:hover {
+  border-color: var(--tf-main);
+}
+
 /* Breathing dot: alive, 2 s pulse. */
 .dot {
   flex: 0 0 auto;
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   animation: breathe 2s ease-in-out infinite;
+}
+
+.chip[data-paused] .dot {
+  opacity: 0.35;
+  animation: none;
 }
 
 @keyframes breathe {
@@ -54,16 +70,37 @@
 }
 
 .task {
-  max-width: 150px;
+  max-width: 160px;
   overflow: hidden;
+  font: var(--tf-font-item);
+  color: var(--tf-ink);
   text-overflow: ellipsis;
+}
+
+.chip[data-kind='cur'] .task {
+  max-width: 240px;
+  font: var(--tf-font-lead);
+}
+
+.chip[data-paused] .task {
+  font-weight: 400;
+  color: var(--tf-ink-2);
+}
+
+.state {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  font: var(--tf-font-hint);
+  color: var(--tf-ink-3);
+  background: color-mix(in srgb, var(--tf-ink-3) 14%, transparent);
+  border-radius: 999px;
 }
 
 .src {
   flex: 0 0 auto;
-  padding: 0 5px;
-  font-size: 9px;
-  color: var(--dsw-alias-label-secondary, #64748b);
+  padding: 0 6px;
+  font: var(--tf-font-hint);
+  color: var(--tf-ink-2);
   background: var(--dsw-alias-bg-layer-2, #eef2f7);
   border-radius: 999px;
 }
@@ -73,17 +110,16 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  height: 22px;
   padding: 0 4px;
-  font-size: 10px;
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  font: var(--tf-font-ctrl);
+  color: var(--tf-ink-2);
 }
 
 .empty {
   display: flex;
   align-items: center;
-  height: 28px;
+  min-height: 30px;
   padding: 0 4px;
-  font-size: 11px;
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  font: var(--tf-font-hint);
+  color: var(--tf-ink-3);
 }

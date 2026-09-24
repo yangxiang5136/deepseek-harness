@@ -23,18 +23,27 @@ const CLEARANCE_VAR = '--dsh-shell-bottom-clearance'
 export type TaskFlowBarProps = PropsRuntime<'shell.overlay'> & InjectFace<TaskFlowFace>
 
 /**
- * Real text measurement over a canvas at the label font, falling back to the
- * estTextW character heuristic where canvas 2D is unavailable (jsdom).
- * @returns The text-width seat used for chip overflow and hover widths.
+ * Real text measurement over a canvas in the app font family, falling back to
+ * the estTextW character heuristic where canvas 2D is unavailable (jsdom).
+ * Callers pass the size and weight the text renders at; the context font is
+ * reassigned only when that pair changes (the `context.font` getter returns a
+ * normalized string, so the last assigned value is cached here instead).
+ * @returns The text-width seat used for chip overflow and strip label fit.
  */
 function createMeasure(): TextMeasure {
   try {
     const context = document.createElement('canvas').getContext('2d')
     if (context === null) return estTextW
-    // Labels render at 10px in the app font (chip source tags at 9px keep
-    // the same basis, matching the heuristic's single-size model).
-    context.font = `10px ${getComputedStyle(document.body).fontFamily}`
-    return text => context.measureText(text).width
+    const family = getComputedStyle(document.body).fontFamily
+    let last = ''
+    return (text, px = 10, weight = 400) => {
+      const font = `${weight} ${px}px ${family}`
+      if (font !== last) {
+        context.font = font
+        last = font
+      }
+      return context.measureText(text).width
+    }
   } catch {
     return estTextW
   }
@@ -52,6 +61,10 @@ function createMeasure(): TextMeasure {
  * frame (the overlay layer's parent) so the frame's columns end above it —
  * the composer-height precedent, pointed the other way: the consumer is an
  * ancestor, so the property is set where inheritance can reach it.
+ *
+ * While a project tree is open the expanded banner carries `data-panel-open`;
+ * NeedsYouTray.module.css keys its tighter grid height cap on that attribute
+ * because the banner's class name is hashed in this module.
  */
 export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): ReactElement {
   const ledger = useLedger(s => s)
@@ -176,7 +189,7 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
   }
 
   return (
-    <div ref={rootRef} className={css.banner} onClick={closeAll}>
+    <div ref={rootRef} className={css.banner} data-panel-open={tree === null ? undefined : ''} onClick={closeAll}>
       <div className={css.head} onClick={collapse}>
         <span
           className={css.title}

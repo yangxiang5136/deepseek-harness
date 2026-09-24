@@ -8,6 +8,8 @@
  * ledger fixture.
  */
 
+import { TF_TYPE } from './typeScale.ts'
+
 // ---- Tunable constants (prototype pkg-26 values, manifest §4) ----
 
 /** Idle gap that pauses the current task and breaks a pack chain. */
@@ -337,13 +339,17 @@ export function toToken(s: string): string {
 }
 
 /**
- * Text width heuristic (px at 10px font): CJK ≈ 10, ASCII ≈ 5.5. The
- * fallback seat where canvas measurement is unavailable, and the pure-fold
- * default so tests stay DOM-free.
+ * Text width heuristic: CJK ≈ 1em, ASCII ≈ 0.55em (5% wider at weight ≥ 600).
+ * The fallback seat where canvas measurement is unavailable, and the pure-fold
+ * default so tests stay DOM-free. Callers pass the size and weight the text
+ * renders at (typeScale.ts TF_TYPE); the 10px / 400 defaults exist for the
+ * pinned tests only.
  * @param text - label text.
+ * @param px - font size the text renders at.
+ * @param weight - font weight the text renders at.
  * @returns Estimated pixel width.
  */
-export function estTextW(text: string): number {
+export function estTextW(text: string, px = 10, weight = 400): number {
   let w = 0
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i)
@@ -351,7 +357,7 @@ export function estTextW(text: string): number {
       || (c >= 0xAC00 && c <= 0xD7AF) || (c >= 0xF900 && c <= 0xFAFF)
       || (c >= 0xFE30 && c <= 0xFE4F) || (c >= 0xFF00 && c <= 0xFF60)
       || (c >= 0xFFE0 && c <= 0xFFE6)
-    w += wide ? 10 : 5.5
+    w += wide ? px : 0.55 * px * (weight >= 600 ? 1.05 : 1)
   }
   return w
 }
@@ -860,30 +866,63 @@ export function noHeartbeat(model: FoldModel): NoHeartbeatItem[] {
   return items.sort((a, b) => a.lastTs - b.lastTs)
 }
 
-/** Text-width seat: real DOM measurement when available, estTextW otherwise. */
-export type TextMeasure = (text: string) => number
+/**
+ * Text-width seat: real DOM measurement when available, estTextW otherwise.
+ * `px` / `weight` are the size the text renders at (typeScale.ts TF_TYPE).
+ */
+export type TextMeasure = (text: string, px?: number, weight?: number) => number
 
 /**
- * Estimated rendered width of one chip (dot + gaps + task + source tag +
- * padding + row gap), prototype v21 formula tightened toward the rendered
- * geometry: the task label carries the paused suffix when it renders, is
- * capped by the 150px CSS max-width, and the source tag scales to its 9px
- * font off the 10px measuring basis.
+ * Chip-row geometry in px, mirrored from ChipRow.module.css (dot size, flex
+ * gap, pill paddings and borders, task max-widths); the lock test in
+ * fold.client.spec.ts keeps the max-widths equal to the CSS.
+ */
+export const CHIP = {
+  dot: 8,
+  gap: 6,
+  padX: 10,
+  border: 1,
+  srcPadX: 6,
+  statePadX: 6,
+  rowGap: 6,
+  rowPadX: 2,
+  morePadX: 4,
+  curMax: 240,
+  laneMax: 160,
+} as const
+
+/**
+ * Estimated rendered width of one chip plus its trailing row gap: dot, task
+ * (capped at the CSS max-width), the paused 闲置 pill on an idle current
+ * chip, the source tag, padding and border. Every text is measured at the
+ * type role it renders at (typeScale.ts TF_TYPE): the current task at lead
+ * (400 while paused), a lane task at item, the pill and the source at hint.
  * @param chip - the chip.
  * @param measure - text-width seat (defaults to the character heuristic).
  * @returns Estimated px width.
  */
 export function chipW(chip: Chip, measure: TextMeasure = estTextW): number {
-  const task = chip.kind === 'cur' && chip.paused === true ? `${chip.task} · 闲置` : chip.task
-  return 7 + 5 + Math.min(measure(task), 150) + 5 + (measure(chip.src) * 0.9 + 12) + 18 + 6
+  const cur = chip.kind === 'cur'
+  const paused = cur && chip.paused === true
+  const role = cur ? TF_TYPE.lead : TF_TYPE.item
+  const task = Math.min(
+    measure(chip.task, role.px, paused ? 400 : role.weight),
+    cur ? CHIP.curMax : CHIP.laneMax,
+  )
+  const state = paused
+    ? CHIP.gap + measure('闲置', TF_TYPE.hint.px, TF_TYPE.hint.weight) + 2 * CHIP.statePadX
+    : 0
+  const src = measure(chip.src, TF_TYPE.hint.px, TF_TYPE.hint.weight) + 2 * CHIP.srcPadX
+  return CHIP.dot + CHIP.gap + task + state + CHIP.gap + src + 2 * CHIP.padX + 2 * CHIP.border + CHIP.rowGap
 }
 
 /**
  * Width-driven chip split (v21: no count cap — the row takes what fits, the
  * rest collapses into a static +N whose detail lives in the title popover's
- * 更多 running group). The first chip always shows.
+ * 更多 running group). A chip shows only if the +N marker for the chips
+ * after it still fits beside it; the first chip always shows.
  * @param chips - chips in display order.
- * @param rowWidth - usable row width in px.
+ * @param rowWidth - row width in px, including the row's side padding.
  * @param measure - text-width seat (defaults to the character heuristic).
  * @returns Shown prefix and overflowed remainder.
  */
@@ -895,11 +934,16 @@ export function splitChips(
   shown: Chip[]
   overflow: Chip[]
 } {
+  const budget = rowWidth - 2 * CHIP.rowPadX
   let accW = 0
   let splitIdx = 0
   for (const [i, chip] of chips.entries()) {
     const w = chipW(chip, measure)
-    if (i > 0 && accW + w > rowWidth) break
+    const rest = chips.length - i - 1
+    const reserve = rest > 0
+      ? measure(`+${rest}`, TF_TYPE.ctrl.px, TF_TYPE.ctrl.weight) + 2 * CHIP.morePadX
+      : 0
+    if (i > 0 && accW + w + reserve > budget) break
     accW += w
     splitIdx++
   }

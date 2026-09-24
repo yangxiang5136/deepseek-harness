@@ -1,9 +1,10 @@
 import { useState, type KeyboardEvent, type ReactElement } from 'react'
 import { DebtCard } from './DebtCard.tsx'
-import { fmtDur, type AttentionEvent, type NeedsYouItem } from './fold.ts'
+import { estTextW, fmtDur, type AttentionEvent, type NeedsYouItem } from './fold.ts'
 import { fmtAge } from './NeedsYouTray.tsx'
 import { TREE_WINDOW_MS, type ProjectTree, type TreeTask } from './projectTree.ts'
 import type { TaskflowTodoItem } from './todo.ts'
+import { TF_TYPE, type TypeRole } from './typeScale.ts'
 import css from './ProjectPanel.module.css'
 
 /** Branch rows drawn before the +N toggle. */
@@ -11,17 +12,33 @@ export const PANEL_BRANCH_ROWS = 8
 /** Todo items listed under the tree before 还有 N 条. */
 export const PANEL_TODO_ROWS = 5
 
-const LABEL_W = 236
+/*
+ * SVG geometry is sized for the roles ProjectPanel.module.css draws its text
+ * at: main label lead, sub caption hint, branch labels item, waiting tags and
+ * pin chips ctrl, other tags hint (TF_TYPE). No test ties these numbers to the
+ * CSS, so a role change there needs the matching widths and baselines here.
+ * Branch labels, tags and pin chips put their baseline at y + round(0.35 * px),
+ * which centres CJK ink on the row line.
+ */
+const LABEL_W = 260
 /** Slot spacing; busy weeks tighten so the tags and todo nodes stay in view. */
 const STEP = 44
 const TIGHT_STEP = 26
 const TIGHT_SLOTS = 12
-const MAIN_Y = 22
+const MAIN_Y = 26
 const ROW0_Y = 58
-const ROW_H = 24
-const TAG_W = 62
-const PIN_W = 52
+const ROW_H = 26
+/** Fits the widest stall tag (23小时无动静, 69px at hint) with about 9px a side. */
+const TAG_W = 88
+const TAG_H = 20
+const PIN_W = 64
+const PIN_H = 20
 const PIN_X = LABEL_W - PIN_W - 4
+/** The mainline row's hover area spans its label and sub caption. */
+const MAIN_HIT_Y = MAIN_Y - 22
+const MAIN_HIT_H = 40
+/** Label budget; the text ends 28px left of the first fork. */
+const LABEL_CLIP_W = LABEL_W - 20
 
 const WAIT_LABEL: Readonly<Record<string, string>> = { decision: '等你决定', review: '等你审阅', merge: '等你合并' }
 
@@ -44,8 +61,20 @@ export interface ProjectPanelProps {
   onClose: () => void
 }
 
-function clip(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+/**
+ * Shorten a label to the width budget at the role it renders in, ending in
+ * an ellipsis when cut (estimated width, see estTextW).
+ * @param text - the label.
+ * @param maxW - width budget in px.
+ * @param role - the type role the label renders at.
+ * @returns The label, or its longest prefix plus … that fits.
+ */
+function clipPx(text: string, maxW: number, role: TypeRole): string {
+  if (estTextW(text, role.px, role.weight) <= maxW) return text
+  const chars = Array.from(text)
+  let end = chars.length - 1
+  while (estTextW(`${chars.slice(0, end).join('')}…`, role.px, role.weight) > maxW) end--
+  return `${chars.slice(0, end).join('')}…`
 }
 
 /**
@@ -61,15 +90,36 @@ function onKey(run: () => void): (e: KeyboardEvent) => void {
   }
 }
 
-function stateTag(task: TreeTask, now: number): { text: string; cls: string } {
+/** A state tag: its text, pill class, and text class. */
+interface StateTag {
+  text: string
+  cls: string
+  textCls: string
+}
+
+function stateTag(task: TreeTask, now: number): StateTag {
+  const quiet = css.tagText as string
   switch (task.state) {
     // A waiting branch always carries its debt (buildProjectTree).
-    case 'waiting': return { text: WAIT_LABEL[(task.debt as NeedsYouItem).kind] ?? '等你收口', cls: css.tagWait as string }
-    case 'parked': return { text: '停放', cls: css.tagPark as string }
-    case 'running': return { text: '进行中', cls: css.tagLive as string }
-    case 'stalled': return { text: `${fmtAge(now - task.last)}无动静`, cls: css.tagQuiet as string }
-    case 'done': return { text: '已完成', cls: css.tagQuiet as string }
-    case 'drop': return { text: '已放弃', cls: css.tagQuiet as string }
+    case 'waiting': return {
+      text: WAIT_LABEL[(task.debt as NeedsYouItem).kind] ?? '等你收口',
+      cls: css.tagWait as string,
+      textCls: `${quiet} ${css.tagTextWait}`,
+    }
+    case 'parked': return { text: '停放', cls: css.tagPark as string, textCls: quiet }
+    case 'running': return { text: '进行中', cls: css.tagLive as string, textCls: quiet }
+    case 'stalled': return { text: `${fmtAge(now - task.last)}无动静`, cls: css.tagQuiet as string, textCls: quiet }
+    case 'done': return { text: '已完成', cls: css.tagQuiet as string, textCls: quiet }
+    case 'drop': return { text: '已放弃', cls: css.tagQuiet as string, textCls: quiet }
+  }
+}
+
+/** Branch label ink: a waiting branch reads strongest, parked and stalled ones recede. */
+function labelClass(task: TreeTask): string {
+  switch (task.state) {
+    case 'waiting': return `${css.branchLabel} ${css.labelWait}`
+    case 'running': return css.branchLabel as string
+    default: return `${css.branchLabel} ${css.labelDim}`
   }
 }
 
@@ -109,11 +159,13 @@ export function ProjectPanel({
   const nowX = LABEL_W + 16 + Math.max(1, slots.length) * step + 12
   const todoItems = todos.status === 'ready' ? todos.items : []
   const width = nowX + TAG_W + 24
-  const height = ROW0_Y + Math.max(0, rows.length - 1) * ROW_H + 18
+  const height = ROW0_Y + Math.max(0, rows.length - 1) * ROW_H + TAG_H / 2 + 8
   const mainStartX = tree.mainNodes.length > 0 ? xAt(tree.mainNodes[0] as number) : LABEL_W + 16
   const settledDone = tree.settled.filter(t => t.state === 'done')
   const settledDur = tree.settled.reduce((sum, t) => sum + t.activeDur, 0)
-  const mainTag = tree.main === null ? { text: '近 7 天没动', cls: css.tagQuiet as string } : stateTag(tree.main, now)
+  const mainTag = tree.main === null
+    ? { text: '近 7 天没动', cls: css.tagQuiet as string, textCls: css.tagText as string }
+    : stateTag(tree.main, now)
   // The card follows the live fold: once Sean seals the debt it closes itself.
   const cardDebt = [tree.main, ...tree.branches].find(t => t?.task === cardTask)?.debt ?? null
   const toggleCard = (task: string): void => { onCard(cardTask === task ? null : task) }
@@ -128,18 +180,18 @@ export function ProjectPanel({
       onClick={() => { onPin(task) }}
       onKeyDown={onKey(() => { onPin(task) })}
     >
-      <rect x={PIN_X} y={y - 9} width={PIN_W} height={18} rx={9} />
+      <rect x={PIN_X} y={y - PIN_H / 2} width={PIN_W} height={PIN_H} rx={PIN_H / 2} />
       <text x={PIN_X + PIN_W / 2} y={y + 4} textAnchor="middle">{text}</text>
     </g>
   )
 
   /** A state tag; tags of open debts open their card. */
-  const tagAt = (x: number, y: number, task: TreeTask | null, tag: { text: string; cls: string }): ReactElement => {
+  const tagAt = (x: number, y: number, task: TreeTask | null, tag: StateTag): ReactElement => {
     const opens = task !== null && task.debt !== null
     const body = (
       <>
-        <rect x={x} y={y - 9} width={TAG_W} height={18} rx={9} className={tag.cls} />
-        <text x={x + TAG_W / 2} y={y + 4} textAnchor="middle" className={css.tagText}>{tag.text}</text>
+        <rect x={x} y={y - TAG_H / 2} width={TAG_W} height={TAG_H} rx={TAG_H / 2} className={tag.cls} />
+        <text x={x + TAG_W / 2} y={y + 4} textAnchor="middle" className={tag.textCls}>{tag.text}</text>
       </>
     )
     if (!opens) return body
@@ -176,7 +228,7 @@ export function ProjectPanel({
           ? <span className={css.muted}>近 7 天没有活动</span>
           : leaning
             ? <span className={css.lean}>{`分支占 ${branchShare}%，重心偏到分支了`}</span>
-            : <span className={css.muted}>{`主线占 ${100 - branchShare}%`}</span>}
+            : <span className={css.calm}>{`主线占 ${100 - branchShare}%`}</span>}
         <span className={css.spacer} />
         <button type="button" className={css.btn} onClick={onClose}>收起</button>
       </div>
@@ -184,9 +236,11 @@ export function ProjectPanel({
       <div className={css.graph}>
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${tree.label} 主线与未了结分支`}>
           <g className={css.row}>
-            <rect x={0} y={MAIN_Y - ROW_H / 2} width={LABEL_W} height={ROW_H} className={css.hit} />
-            <text x={8} y={MAIN_Y - 3} className={css.mainLabel}>{clip(tree.mainline ?? '还没有任务', 18)}</text>
-            <text x={8} y={MAIN_Y + 10} className={css.sub}>{tree.pinned ? '主线' : '主线 · 推测，悬停可改'}</text>
+            <rect x={0} y={MAIN_HIT_Y} width={LABEL_W} height={MAIN_HIT_H} className={css.hit} />
+            <text x={8} y={MAIN_Y - 5} className={tree.mainline === null ? `${css.mainLabel} ${css.mainEmpty}` : css.mainLabel}>
+              {clipPx(tree.mainline ?? '还没有任务', LABEL_CLIP_W, TF_TYPE.lead)}
+            </text>
+            <text x={8} y={MAIN_Y + 12} className={css.sub}>{tree.pinned ? '主线' : '主线 · 推测，悬停可改'}</text>
             {tree.mainline !== null && !tree.pinned && pinChip(tree.mainline, MAIN_Y, '确认主线')}
           </g>
           <path d={`M${mainStartX} ${MAIN_Y} H${nowX}`} className={css.main} />
@@ -198,7 +252,7 @@ export function ProjectPanel({
               <g key={branch.task} className={css.row}>
                 <title>{`${branch.task} · ${branch.surface} · ${fmtDur(branch.activeDur)}`}</title>
                 <rect x={0} y={y - ROW_H / 2} width={width} height={ROW_H} className={css.hit} />
-                <text x={8} y={y + 4} className={css.branchLabel}>{clip(branch.task, 18)}</text>
+                <text x={8} y={y + 5} className={labelClass(branch)}>{clipPx(branch.task, LABEL_CLIP_W, TF_TYPE.item)}</text>
                 <path d={`M${fx} ${MAIN_Y} V${y - 5} Q${fx} ${y} ${fx + 5} ${y} H${nowX}`} className={edgeClass(branch)} />
                 <circle cx={fx + 14} cy={y} r={3.5} className={css.branchNode} />
                 {tagAt(nowX, y, branch, tag)}
@@ -213,6 +267,9 @@ export function ProjectPanel({
 
       {cardDebt !== null && (
         <DebtCard
+          // One instance per debt: a typed note must never carry over to the
+          // next card and be sealed as feedback on the wrong task.
+          key={`${cardDebt.project}\u0000${cardDebt.task}\u0000${cardDebt.ts}`}
           debt={cardDebt}
           label={tree.label}
           events={events}
@@ -228,7 +285,7 @@ export function ProjectPanel({
       <div className={css.foot}>
         {tree.branches.length > PANEL_BRANCH_ROWS && (
           <button type="button" className={css.btn} onClick={() => { setAllRows(!allRows) }}>
-            {allRows ? '只看前 8 条' : `还有 ${tree.branches.length - PANEL_BRANCH_ROWS} 条未了结分支`}
+            {allRows ? `只看前 ${PANEL_BRANCH_ROWS} 条` : `还有 ${tree.branches.length - PANEL_BRANCH_ROWS} 条未了结分支`}
           </button>
         )}
         {tree.settled.length > 0 && (
@@ -249,7 +306,7 @@ export function ProjectPanel({
       )}
 
       <div className={css.todos}>
-        <span className={css.muted}>接下来 · 待办</span>
+        <span className={css.section}>接下来 · 待办</span>
         {todos.status === 'loading' && <span className={css.muted}>读取中…</span>}
         {todos.status === 'error' && <span className={css.error}>{`待办读取失败：${todos.message}`}</span>}
         {todos.status === 'ready' && todoItems.length === 0 && <span className={css.muted}>这个项目没有待办</span>}

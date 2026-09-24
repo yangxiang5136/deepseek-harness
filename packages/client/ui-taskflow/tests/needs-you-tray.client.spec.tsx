@@ -5,6 +5,8 @@
  * with a five-second 撤销 window, and a remembered fold state.
  */
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TaskFlowBar, type TaskFlowBarProps } from '../src/client/TaskFlowBar.tsx'
@@ -91,6 +93,14 @@ describe('NeedsYouTray', () => {
     expect(screen.getByText('决定')).toBeTruthy()
   })
 
+  it('shows an unknown kind verbatim and an all-clear when nothing is owed', () => {
+    const first = renderBar([debtLine('ARK', '方舟五', 5, 'custom')], vi.fn())
+    expect(screen.getByText('custom')).toBeTruthy()
+    first.unmount()
+    renderBar([], vi.fn())
+    expect(screen.getByText('没有待你收口的事')).toBeTruthy()
+  })
+
   it('opens a row in its project tree card and seals it with a note', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const seal = vi.fn().mockResolvedValue({ sealed: true, message: null })
@@ -143,6 +153,14 @@ describe('NeedsYouTray', () => {
     expect(screen.queryByRole('status')).toBeNull()
   })
 
+  it('counts every queued seal in the undo toast', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    renderBar(LEDGER, vi.fn())
+    fireEvent.click(screen.getByRole('button', { name: '收口 数字一' }))
+    fireEvent.click(screen.getByRole('button', { name: '收口 方舟一' }))
+    expect(screen.getByRole('status').textContent).toContain('已收口 2 条，最近：方舟一')
+  })
+
   it('brings a row back with the reason when the host refuses the seal', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const seal = vi.fn().mockResolvedValue({ sealed: false, message: 'no-open-needs-you' })
@@ -151,6 +169,19 @@ describe('NeedsYouTray', () => {
     await act(async () => { vi.advanceTimersByTime(SEAL_UNDO_MS + 10) })
     expect(screen.getByRole('button', { name: '数字一' })).toBeTruthy()
     expect(screen.getByText('收口失败：no-open-needs-you')).toBeTruthy()
+  })
+
+  it('caps its grid while a project panel is open', () => {
+    renderBar(LEDGER, vi.fn())
+    const row = screen.getByRole('button', { name: '方舟一' })
+    expect(row.closest('[data-panel-open]')).toBeNull()
+    const head = screen.getByRole('button', { name: 'ARK' })
+    fireEvent.click(head)
+    expect(row.closest('[data-panel-open]')).not.toBeNull()
+    fireEvent.click(head)
+    expect(row.closest('[data-panel-open]')).toBeNull()
+    const css = readFileSync(resolve(import.meta.dirname, '../src/client/NeedsYouTray.module.css'), 'utf8')
+    expect(css).toMatch(/\[data-panel-open\] \.grid \{\s*max-height: min\(20vh, 152px\);/)
   })
 
   it('folds to its header and remembers the choice', () => {
@@ -162,6 +193,23 @@ describe('NeedsYouTray', () => {
 
     renderBar(LEDGER, vi.fn())
     expect(screen.getByText('5')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '方舟一' })).toBeNull()
+  })
+
+  it('unfolds again, and still folds when storage is blocked', () => {
+    window.localStorage.setItem(TRAY_COLLAPSED_KEY, '1')
+    const first = renderBar(LEDGER, vi.fn())
+    fireEvent.click(screen.getByRole('button', { name: /待你收口/ }))
+    expect(screen.getByRole('button', { name: '方舟一' })).toBeTruthy()
+    expect(window.localStorage.getItem(TRAY_COLLAPSED_KEY)).toBe('0')
+    first.unmount()
+
+    const blocked = (): never => { throw new Error('blocked') }
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(blocked)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked)
+    renderBar(LEDGER, vi.fn())
+    expect(screen.getByRole('button', { name: '方舟一' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /待你收口/ }))
     expect(screen.queryByRole('button', { name: '方舟一' })).toBeNull()
   })
 })

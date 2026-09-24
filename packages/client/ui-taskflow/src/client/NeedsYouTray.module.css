@@ -2,14 +2,17 @@
  * Needs-you tray (2026-09-23): open debts laid out under the history strip
  * and chip row, one column per project. Chrome follows the --dsw-* aliases so
  * both themes work; the project dot reuses the bar's identity palette.
+ *
+ * Type (2026-09-24): the tray inherits the banner's meta role; 待你收口 and
+ * its count are the lead, debt titles the brightest item in each column,
+ * project heads and buttons ctrl, keys and hints the floor.
  */
 
 .tray {
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
   padding: 0 12px 8px;
-  font-size: 11px;
-  color: var(--dsw-alias-label-primary, #374151);
+  color: var(--tf-ink);
 }
 
 .head {
@@ -18,8 +21,7 @@
   align-items: center;
   width: 100%;
   padding: 4px 0;
-  font-family: inherit;
-  font-size: 11px;
+  font: var(--tf-font-meta);
   color: inherit;
   cursor: pointer;
   background: transparent;
@@ -28,20 +30,24 @@
 }
 
 .title {
-  font-weight: 600;
+  font: var(--tf-font-lead);
+  color: var(--tf-ink);
 }
 
 .count {
-  padding: 0 7px;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--tf-wait);
+  box-sizing: border-box;
+  min-width: 24px;
+  padding: 0 8px;
+  font: var(--tf-font-lead);
+  color: var(--tf-wait-ink);
+  text-align: center;
   background: var(--tf-wait-soft);
   border-radius: 999px;
 }
 
 .hint {
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  font: var(--tf-font-hint);
+  color: var(--tf-ink-3);
 }
 
 .spacer {
@@ -50,15 +56,20 @@
 
 .empty {
   padding: 4px 0;
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  color: var(--tf-ink-3);
 }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 6px;
-  max-height: 40vh;
+  max-height: min(36vh, 320px);
   overflow-y: auto;
+}
+
+/* The banner is hashed in another module, so the panel-open cap keys on its attribute. */
+[data-panel-open] .grid {
+  max-height: min(20vh, 152px);
 }
 
 .col {
@@ -74,7 +85,6 @@
   gap: 6px;
   align-items: center;
   margin-bottom: 2px;
-  font-weight: 600;
 }
 
 .dot {
@@ -89,12 +99,10 @@
   gap: 4px;
   align-items: center;
   min-width: 0;
-  padding: 1px 8px;
+  padding: 2px 8px;
   overflow: hidden;
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: 600;
-  color: inherit;
+  font: var(--tf-font-ctrl);
+  color: var(--tf-ink-2);
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
@@ -106,9 +114,9 @@
 
 /* Disclosure chevron: says "this opens something" without changing the name. */
 .project::after {
-  font-size: 9px;
+  font-size: 0.75em;
   font-weight: 400;
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  color: var(--tf-ink-3);
   content: '▸';
 }
 
@@ -134,12 +142,11 @@
 }
 
 .colCount {
-  font-weight: 400;
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  color: var(--tf-ink-3);
 }
 
 .row {
-  padding: 3px 0;
+  padding: 2px 0;
   border-top: 1px solid var(--tf-line);
 }
 
@@ -153,12 +160,11 @@
 .kindDecision {
   flex: none;
   padding: 0 6px;
-  font-size: 10px;
-  border-radius: 6px;
+  border-radius: var(--tf-radius);
 }
 
 .kind {
-  color: var(--dsw-alias-label-secondary, #6b7280);
+  color: var(--tf-ink-2);
   background: var(--dsw-alias-bg-layer-2, #f4f5f7);
 }
 
@@ -172,9 +178,8 @@
   min-width: 0;
   padding: 0;
   overflow: hidden;
-  font-family: inherit;
-  font-size: 11px;
-  color: inherit;
+  font: var(--tf-font-item);
+  color: var(--tf-ink);
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -190,18 +195,19 @@
 
 .age {
   flex: none;
-  font-size: 10px;
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  color: var(--tf-ink-3);
 }
 
+/* Icon glyph: the box follows the control height, the check sits above the ladder. */
 .ok {
   flex: none;
-  width: 22px;
-  height: 20px;
+  width: var(--tf-ctl-h);
+  height: var(--tf-ctl-h);
   padding: 0;
-  font-family: inherit;
-  font-size: 11px;
-  color: var(--tf-quiet);
+  font: var(--tf-font-ctrl);
+  font-size: 14px;
+  line-height: 1;
+  color: var(--tf-ink-3);
   cursor: pointer;
   background: var(--dsw-alias-bg-layer-1, #fff);
   border: 1px solid var(--tf-edge);
@@ -215,16 +221,12 @@
   border-color: var(--tf-main-edge);
 }
 
-
-
-
 .more,
 .undoBtn {
-  padding: 1px 10px;
+  padding: 3px 10px;
   margin-top: 3px;
-  font-family: inherit;
-  font-size: 10px;
-  color: var(--dsw-alias-label-secondary, #6b7280);
+  font: var(--tf-font-ctrl);
+  color: var(--tf-ink-2);
   cursor: pointer;
   background: var(--dsw-alias-bg-layer-1, #fff);
   border: 1px solid var(--tf-edge);
@@ -236,6 +238,7 @@
 }
 
 .error {
+  font: var(--tf-font-item);
   color: var(--dsw-alias-state-error-primary, #dc2626);
 }
 
@@ -254,16 +257,26 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  font: var(--tf-font-item);
+  color: var(--tf-ink);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .undoBtn {
+  flex: none;
+  padding: 3px 12px;
   margin-top: 0;
-  font-weight: 600;
-  color: var(--dsw-alias-label-primary);
+  font-weight: var(--tf-fw-accent);
+  color: var(--tf-main);
+  white-space: nowrap;
+  background: var(--tf-main-soft);
+  border-color: var(--tf-main-edge);
 }
 
 .undoHint {
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  flex: none;
+  font: var(--tf-font-hint);
+  color: var(--tf-ink-3);
+  white-space: nowrap;
 }

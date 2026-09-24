@@ -18,8 +18,8 @@
   max-height: 320px;
   padding: 8px 10px;
   overflow-y: auto;
-  font-size: 11px;
-  color: var(--dsw-alias-label-primary, #374151);
+  font: var(--tf-font-meta);
+  color: var(--tf-ink);
   pointer-events: auto;
   background: var(--dsw-alias-bg-layer-3, #fff);
   border: 1px solid var(--tf-line);
@@ -41,30 +41,34 @@
 }
 
 .group {
-  margin: 8px 0 2px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--dsw-alias-label-secondary, #6b7280);
-  letter-spacing: 0.05em;
+  margin: 8px 0 4px;
+  font: var(--tf-font-ctrl);
+  color: var(--tf-ink-2);
+  letter-spacing: 0.02em;
 }
 
 .group:first-child {
   margin-top: 0;
 }
 
+/* The one accent in the popover: silent lanes need Sean. */
+.alarm {
+  font: var(--tf-font-item);
+  font-weight: var(--tf-fw-accent);
+  color: var(--tf-wait-ink);
+}
+
 .item {
   display: flex;
-  gap: 6px;
-  align-items: flex-start;
+  gap: 8px;
+  align-items: baseline;
   margin: 2px 0;
-  line-height: 1.5;
 }
 
 .key {
-  flex: 0 0 40px;
-  padding-top: 1px;
-  font-size: 10px;
-  color: var(--dsw-alias-label-secondary);
+  flex: 0 0 76px;
+  font: var(--tf-font-hint);
+  color: var(--tf-ink-3);
 }
 
 .value {
@@ -75,6 +79,12 @@
   user-select: text;
 }
 
+.silent {
+  font: var(--tf-font-item);
+  color: var(--tf-ink);
+}
+
 .allClear {
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  font: var(--tf-font-hint);
+  color: var(--tf-ink-3);
 }

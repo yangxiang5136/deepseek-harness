@@ -1,5 +1,6 @@
-import type { CSSProperties, ReactElement, Ref } from 'react'
+import type { CSSProperties, ReactElement, ReactNode, Ref } from 'react'
 import { buildChips, fmtDur, paletteColor, type FoldModel } from './fold.ts'
+import barCss from './TaskFlowBar.module.css'
 import css from './MiniBar.module.css'
 
 /** Owner-fed props: the folded model, the clock, read state, and expand. */
@@ -17,9 +18,12 @@ export interface MiniBarProps {
 
 /**
  * The collapsed 30px mini bar: the day's history segments as a background
- * strip (right edge = now), one label chip carrying the current task, its
- * minutes, and the +N parallel suffix. A read failure paints the label red
- * instead of letting the bar quietly freeze.
+ * strip (right edge = now) under one label chip. The chip carries the current
+ * task (or the first running chip when there is none) in a task span that
+ * alone ellipsizes, then its minutes and the +N parallel count in a meta span;
+ * an idle current task shows a 闲置 pill instead of minutes. A read failure
+ * paints the label red instead of letting the bar quietly freeze; loading and
+ * nothing-running read as quiet placeholders.
  */
 export function MiniBar({ model, now, loading, error, onExpand, rootRef }: MiniBarProps): ReactElement {
   const winStart = model.history.length > 0
@@ -34,29 +38,38 @@ export function MiniBar({ model, now, loading, error, onExpand, rootRef }: MiniB
   })
 
   const chips = buildChips(model)
-  const suffix = chips.length > 1 ? ` +${chips.length - 1}` : ''
-  let label = '空闲'
-  let labelCls = css.chip
+  const more = chips.length - 1
+  const first = chips[0]
+  let label: ReactNode = '空闲'
+  let modifier = css.placeholder
   if (error !== undefined) {
     label = '⚠ 账本读取失败'
-    labelCls = `${css.chip} ${css.error}`
+    modifier = css.error
   } else if (loading) {
     label = '加载账本…'
-  } else if (model.current !== null) {
-    if (model.current.paused) {
-      label = `${model.current.task} · 闲置${suffix}`
-      labelCls = `${css.chip} ${css.paused}`
-    } else {
-      label = `${model.current.task} ${fmtDur(model.current.activeDur)}${suffix}`
-    }
-  } else {
-    const first = chips[0]
-    if (first !== undefined) label = `${first.task} ${fmtDur(first.activeDur ?? now - first.start)}${suffix}`
+  } else if (model.current?.paused === true) {
+    label = (
+      <>
+        <span className={css.task}>{model.current.task}</span>
+        <span className={css.state}>闲置</span>
+        {more > 0 && <span className={css.meta}>{`+${more}`}</span>}
+      </>
+    )
+    modifier = css.paused
+  } else if (first !== undefined) {
+    // buildChips puts a running current task first, so `first` is it when set.
+    label = (
+      <>
+        <span className={css.task}>{first.task}</span>
+        <span className={css.meta}>{`${fmtDur(first.activeDur ?? now - first.start)}${more > 0 ? ` +${more}` : ''}`}</span>
+      </>
+    )
+    modifier = undefined
   }
 
   return (
-    <div ref={rootRef} className={css.mini} onClick={onExpand}>
-      <div className={labelCls} style={{ left: 4 }}>{label}</div>
+    <div ref={rootRef} className={`${css.mini} ${barCss.scale}`} onClick={onExpand}>
+      <div className={[css.chip, modifier].filter(Boolean).join(' ')} style={{ left: 4 }}>{label}</div>
       <div className={css.strip}>
         {model.history.map((s, i) => (
           <div key={i} className={css.seg} style={segStyle(s)} />
