@@ -15,6 +15,7 @@ import TaskflowLedgerGateway, {
   isNeedsYouOpenAt,
   LEGACY_CLOSE_MS,
   parseLedger,
+  SEAL_NOTE_MAX,
   todoDirectory,
 } from '../src/index.ts'
 import {
@@ -700,6 +701,20 @@ describe('TaskflowLedgerGateway', () => {
     })
     expect(typeof appended.event_id).toBe('string')
     expect((await stat(path)).mode & 0o777).toBe(0o600)
+  })
+
+  it('carries a trimmed closing note and refuses a malformed one', async () => {
+    const debt = line('needs-you', T0, { schema_version: 2, event_id: DEBT_ID })
+    const { gateway, path } = await harness(`${debt}\n`)
+    for (const note of ['', '两行\n备注', 'x'.repeat(SEAL_NOTE_MAX + 1)]) {
+      expect(await gateway.seal({ project: PROJECT, task: TASK, ...AUDIT, note })).toMatchObject({
+        sealed: false, reason: 'invalid-request',
+      })
+    }
+    const result = await gateway.seal({ project: PROJECT, task: TASK, ...AUDIT, note: '  下次先对齐需求再动手  ' })
+    expect(result.sealed).toBe(true)
+    const written = (await readFile(path, 'utf8')).trimEnd().split('\n')
+    expect(parseObject(written[1] ?? '')).toMatchObject({ payload: { seal: true, note: '下次先对齐需求再动手' } })
   })
 
   it('rejects an unsafe events.jsonl alias before an exact-override append', async () => {

@@ -8,8 +8,6 @@ import css from './ProjectPanel.module.css'
 
 /** Branch rows drawn before the +N toggle. */
 export const PANEL_BRANCH_ROWS = 8
-/** Todo items drawn as dashed nodes after now; the list below shows more. */
-export const PANEL_TODO_NODES = 3
 /** Todo items listed under the tree before 还有 N 条. */
 export const PANEL_TODO_ROWS = 5
 
@@ -22,7 +20,6 @@ const MAIN_Y = 22
 const ROW0_Y = 58
 const ROW_H = 24
 const TAG_W = 62
-const TODO_STEP = 104
 const PIN_W = 52
 const PIN_X = LABEL_W - PIN_W - 4
 
@@ -39,6 +36,11 @@ export interface ProjectPanelProps {
   now: number
   todos: TodoState
   onPin: (task: string) => void
+  /** Task whose debt card is open (owned by the bar so the tray can open it). */
+  cardTask: string | null
+  onCard: (task: string | null) => void
+  /** Queue a seal of an open debt with Sean's optional closing note. */
+  onSeal: (debt: NeedsYouItem, note: string) => void
   onClose: () => void
 }
 
@@ -84,15 +86,16 @@ function edgeClass(task: TreeTask): string {
  * The project tree panel (Branch Compass inside TaskFlow): a ratio line that
  * says whether the week went to the mainline or leaked into branches, the
  * mainline with every unresolved branch forking off where it began, and the
- * project's todo items continuing the mainline past now. Settled branches
- * only appear as a summary line.
+ * project's todo list below. Settled branches only appear as a summary line;
+ * an open debt's tag opens its card (seal with a note, continuation prompt).
  * @param props - tree, clock, todo read, pin and close verbs.
  * @returns The panel element.
  */
-export function ProjectPanel({ tree, events, now, todos, onPin, onClose }: ProjectPanelProps): ReactElement {
+export function ProjectPanel({
+  tree, events, now, todos, onPin, cardTask, onCard, onSeal, onClose,
+}: ProjectPanelProps): ReactElement {
   const [allRows, setAllRows] = useState(false)
   const [showSettled, setShowSettled] = useState(false)
-  const [cardTask, setCardTask] = useState<string | null>(null)
 
   const total = tree.mainDur + tree.branchDur
   const branchShare = total === 0 ? 0 : Math.round((tree.branchDur / total) * 100)
@@ -105,8 +108,7 @@ export function ProjectPanel({ tree, events, now, todos, onPin, onClose }: Proje
   const xAt = (t: number): number => LABEL_W + 16 + Math.max(0, slots.indexOf(Math.max(t, windowStart))) * step
   const nowX = LABEL_W + 16 + Math.max(1, slots.length) * step + 12
   const todoItems = todos.status === 'ready' ? todos.items : []
-  const todoNodes = todoItems.slice(0, PANEL_TODO_NODES)
-  const width = nowX + TAG_W + 24 + todoNodes.length * TODO_STEP
+  const width = nowX + TAG_W + 24
   const height = ROW0_Y + Math.max(0, rows.length - 1) * ROW_H + 18
   const mainStartX = tree.mainNodes.length > 0 ? xAt(tree.mainNodes[0] as number) : LABEL_W + 16
   const settledDone = tree.settled.filter(t => t.state === 'done')
@@ -114,7 +116,7 @@ export function ProjectPanel({ tree, events, now, todos, onPin, onClose }: Proje
   const mainTag = tree.main === null ? { text: '近 7 天没动', cls: css.tagQuiet as string } : stateTag(tree.main, now)
   // The card follows the live fold: once Sean seals the debt it closes itself.
   const cardDebt = [tree.main, ...tree.branches].find(t => t?.task === cardTask)?.debt ?? null
-  const toggleCard = (task: string): void => { setCardTask(cardTask === task ? null : task) }
+  const toggleCard = (task: string): void => { onCard(cardTask === task ? null : task) }
 
   /** The hover-revealed 设为主线 chip at the end of a row's label. */
   const pinChip = (task: string, y: number, text: string): ReactElement => (
@@ -136,7 +138,7 @@ export function ProjectPanel({ tree, events, now, todos, onPin, onClose }: Proje
     const opens = task !== null && task.debt !== null
     const body = (
       <>
-        <rect x={x} y={y - 9} width={TAG_W} height={18} rx={4} className={tag.cls} />
+        <rect x={x} y={y - 9} width={TAG_W} height={18} rx={9} className={tag.cls} />
         <text x={x + TAG_W / 2} y={y + 4} textAnchor="middle" className={css.tagText}>{tag.text}</text>
       </>
     )
@@ -161,20 +163,22 @@ export function ProjectPanel({ tree, events, now, todos, onPin, onClose }: Proje
     <section className={css.panel} aria-label={`${tree.label} 项目树`} onClick={(e) => { e.stopPropagation() }}>
       <div className={css.head}>
         <span className={css.name}>{tree.label}</span>
-        <span className={css.muted}>近 7 天</span>
-        <span className={css.meter} aria-hidden="true">
+        <span
+          className={css.meter}
+          role="img"
+          aria-label={`近 7 天 主线 ${fmtDur(tree.mainDur)} · 分支 ${fmtDur(tree.branchDur)}`}
+          title={`近 7 天 主线 ${fmtDur(tree.mainDur)} · 分支 ${fmtDur(tree.branchDur)}`}
+        >
           <i className={css.meterMain} style={{ flexGrow: tree.mainDur }} />
           <i className={css.meterBranch} style={{ flexGrow: tree.branchDur }} />
         </span>
-        <span>{`主线 ${fmtDur(tree.mainDur)} · 分支 ${fmtDur(tree.branchDur)}`}</span>
         {total === 0
-          ? <span className={css.muted}>近 7 天没有活动记录</span>
+          ? <span className={css.muted}>近 7 天没有活动</span>
           : leaning
             ? <span className={css.lean}>{`分支占 ${branchShare}%，重心偏到分支了`}</span>
             : <span className={css.muted}>{`主线占 ${100 - branchShare}%`}</span>}
         <span className={css.spacer} />
-        {tree.mainline !== null && !tree.pinned && <span className={css.muted}>主线是推测的，鼠标移到任务上可改</span>}
-        <button type="button" className={css.close} onClick={onClose}>收起</button>
+        <button type="button" className={css.btn} onClick={onClose}>收起</button>
       </div>
 
       <div className={css.graph}>
@@ -182,13 +186,10 @@ export function ProjectPanel({ tree, events, now, todos, onPin, onClose }: Proje
           <g className={css.row}>
             <rect x={0} y={MAIN_Y - ROW_H / 2} width={LABEL_W} height={ROW_H} className={css.hit} />
             <text x={8} y={MAIN_Y - 3} className={css.mainLabel}>{clip(tree.mainline ?? '还没有任务', 18)}</text>
-            <text x={8} y={MAIN_Y + 10} className={css.sub}>{`主线 · ${fmtDur(tree.mainDur)}`}</text>
+            <text x={8} y={MAIN_Y + 10} className={css.sub}>{tree.pinned ? '主线' : '主线 · 推测，悬停可改'}</text>
             {tree.mainline !== null && !tree.pinned && pinChip(tree.mainline, MAIN_Y, '确认主线')}
           </g>
           <path d={`M${mainStartX} ${MAIN_Y} H${nowX}`} className={css.main} />
-          {todoNodes.length > 0 && (
-            <path d={`M${nowX + TAG_W + 8} ${MAIN_Y} H${nowX + TAG_W + 8 + todoNodes.length * TODO_STEP - 40}`} className={css.future} />
-          )}
           {rows.map((branch, k) => {
             const y = ROW0_Y + k * ROW_H
             const fx = xAt(branch.start)
@@ -207,31 +208,31 @@ export function ProjectPanel({ tree, events, now, todos, onPin, onClose }: Proje
           })}
           {tree.mainNodes.map((t, i) => <circle key={i} cx={xAt(t)} cy={MAIN_Y} r={3.5} className={css.mainNode} />)}
           {tagAt(nowX, MAIN_Y, tree.main, mainTag)}
-          {todoNodes.map((item, j) => {
-            const cx = nowX + TAG_W + 8 + (j + 1) * TODO_STEP - 52
-            return (
-              <g key={item.title}>
-                <title>{item.title}</title>
-                <circle cx={cx} cy={MAIN_Y} r={4} className={css.todoNode} />
-                <text x={cx} y={MAIN_Y + 16} textAnchor="middle" className={css.sub}>{clip(item.title, 8)}</text>
-              </g>
-            )
-          })}
         </svg>
       </div>
 
       {cardDebt !== null && (
-        <DebtCard debt={cardDebt} label={tree.label} events={events} now={now} onClose={() => { setCardTask(null) }} />
+        <DebtCard
+          debt={cardDebt}
+          label={tree.label}
+          events={events}
+          now={now}
+          onSeal={(note) => {
+            onSeal(cardDebt, note)
+            onCard(null)
+          }}
+          onClose={() => { onCard(null) }}
+        />
       )}
 
       <div className={css.foot}>
         {tree.branches.length > PANEL_BRANCH_ROWS && (
-          <button type="button" className={css.link} onClick={() => { setAllRows(!allRows) }}>
+          <button type="button" className={css.btn} onClick={() => { setAllRows(!allRows) }}>
             {allRows ? '只看前 8 条' : `还有 ${tree.branches.length - PANEL_BRANCH_ROWS} 条未了结分支`}
           </button>
         )}
         {tree.settled.length > 0 && (
-          <button type="button" className={css.link} aria-expanded={showSettled} onClick={() => { setShowSettled(!showSettled) }}>
+          <button type="button" className={css.btn} aria-expanded={showSettled} onClick={() => { setShowSettled(!showSettled) }}>
             {`已了结 ${tree.settled.length} 条（完成 ${settledDone.length}）· ${fmtDur(settledDur)}`}
           </button>
         )}
@@ -241,7 +242,7 @@ export function ProjectPanel({ tree, events, now, todos, onPin, onClose }: Proje
           {tree.settled.map(t => (
             <li key={t.task} className={css.settledItem}>
               {`${t.state === 'done' ? '✓' : '✕'} ${t.task} · ${fmtDur(t.activeDur)}`}
-              <button type="button" className={css.pinInline} onClick={() => { onPin(t.task) }}>设为主线</button>
+              <button type="button" className={`${css.btn} ${css.pinInline}`} onClick={() => { onPin(t.task) }}>设为主线</button>
             </li>
           ))}
         </ul>

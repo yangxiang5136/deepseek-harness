@@ -15,8 +15,8 @@
   padding: 2px 0;
   overflow: visible;
   background: var(--dsw-alias-bg-layer-1, #f8fafc);
-  border: 1px solid var(--dsw-alias-border-l1, #eef2f7);
-  border-radius: 6px;
+  border: 1px solid var(--tf-line);
+  border-radius: var(--tf-radius);
 }
 
 .outer {

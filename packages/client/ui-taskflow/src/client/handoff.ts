@@ -5,11 +5,14 @@
  * sync through `att` while it works.
  */
 
-import type { AttentionEvent, NeedsYouItem } from './fold.ts'
+import { displayProject, type AttentionEvent, type NeedsYouItem } from './fold.ts'
 import { fmtAge } from './NeedsYouTray.tsx'
 
 /** Timeline rows the prompt carries before summarizing the rest. */
 export const PROMPT_TIMELINE_ROWS = 12
+
+/** Sean's latest closing notes a prompt carries for the project. */
+export const PROMPT_FEEDBACK_ROWS = 5
 
 const ATT = '~/my-memories/attention/bin/att'
 
@@ -99,6 +102,21 @@ export function eventLine(e: AttentionEvent): string {
   return parts.join(' · ')
 }
 
+/**
+ * Sean's closing notes on one board project, newest first: the audited seals
+ * that carry a note. These are his feedback to AIs about how the project
+ * should be handled.
+ * @param events - parsed ledger.
+ * @param label - display project (aliases folded).
+ * @returns Seal events with a note, newest first.
+ */
+export function projectFeedback(events: readonly AttentionEvent[], label: string): AttentionEvent[] {
+  return events
+    .filter(e => e.event === 'done' && e.payload?.seal === true && typeof e.payload.note === 'string'
+      && displayProject(e.project) === label)
+    .sort((a, b) => b.t - a.t)
+}
+
 /** What a debt card shows and copies. */
 export interface Handoff {
   /** Status phrase for the card head (e.g. 等 Sean 拍板). */
@@ -131,6 +149,7 @@ export function buildHandoff(
   const task = shellArg(debt.task)
   const project = shellArg(debt.project)
   const shown = timeline.slice(-PROMPT_TIMELINE_ROWS)
+  const feedback = projectFeedback(events, label).slice(0, PROMPT_FEEDBACK_ROWS)
   const resolver = debt.eventId === undefined
     ? `--resolves-ts ${shellArg(debt.ts)}`
     : `--resolves-event-id ${debt.eventId}`
@@ -152,12 +171,20 @@ export function buildHandoff(
     ...(timeline.length > shown.length ? [`- …更早还有 ${timeline.length - shown.length} 条`] : []),
     ...shown.map(e => `- ${eventLine(e)}`),
     '',
+    ...(feedback.length === 0
+      ? []
+      : [
+        '## Sean 在这个项目上最近的收口反馈（请照着调整做法）',
+        ...feedback.map(e => `- ${fmtStamp(e.t)} · ${e.task}：${String(e.payload?.note)}`),
+        '',
+      ]),
     '## 这次要做的',
     ask.todo,
     '收口入口是本机路径就直接读；是会话 id、分支名或链接，先在本机查找，找不到就请 Sean 提供内容。',
     '',
     '## 让 TaskFlow 同步状态',
     '能在本机跑命令时（Claude Code / Codex / Cowork / dsh），用账本写入工具记录进展，-s 填你自己所在的表面（claude-code / codex / cowork / dsh 之一）：',
+    `- 开工前先看 Sean 在这个项目上的全部收口反馈：~/my-memories/attention/bin/feedback -p ${project}`,
     `- 开工：${ATT} start ${task} -p ${project} -s <你的表面>`,
     `- 又产生了要 Sean 处理的东西：${ATT} needs-you ${task} -p ${project} -s <你的表面> -k <merge|decision|review> -r <收口入口> -n '<一句话>'`,
     `- 做完：${ATT} done ${task} -p ${project} -s <你的表面>`,

@@ -5,7 +5,7 @@
  * with a five-second 撤销 window, and a remembered fold state.
  */
 
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TaskFlowBar, type TaskFlowBarProps } from '../src/client/TaskFlowBar.tsx'
 import { fmtAge, TRAY_COLLAPSED_KEY } from '../src/client/NeedsYouTray.tsx'
@@ -26,7 +26,8 @@ function debtLine(project: string, task: string, hoursAgo: number, kind = 'revie
 function renderBar(lines: string[], seal: TaskFlowFace['seal']) {
   const state: TaskflowLedgerState = { events: parseLedgerText(lines.join('\n')), read: true, exists: true }
   const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
-  const props = { useLedger, seal } as unknown as TaskFlowBarProps
+  const todos = vi.fn().mockResolvedValue([])
+  const props = { useLedger, seal, todos } as unknown as TaskFlowBarProps
   const view = render(<TaskFlowBar {...props} />)
   fireEvent.click(screen.getByText('空闲'))
   return view
@@ -90,11 +91,32 @@ describe('NeedsYouTray', () => {
     expect(screen.getByText('决定')).toBeTruthy()
   })
 
-  it('opens a row detail with its ref and the original project name', () => {
-    renderBar(LEDGER, vi.fn())
-    fireEvent.click(screen.getByRole('button', { name: '方舟二' }))
-    expect(screen.getByText('ref-方舟二')).toBeTruthy()
-    expect(screen.getByText('原项目名：MSC_AI')).toBeTruthy()
+  it('opens a row in its project tree card and seals it with a note', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const seal = vi.fn().mockResolvedValue({ sealed: true, message: null })
+    renderBar(LEDGER, seal)
+    const row = screen.getByRole('button', { name: '方舟二' })
+    fireEvent.click(row)
+    expect(row.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('region', { name: 'ARK 项目树' })).toBeTruthy()
+    const card = screen.getByRole('region', { name: '方舟二 详情' })
+    expect(within(card).getByText('ref-方舟二')).toBeTruthy()
+    expect(within(card).getByText(/账本里写作 MSC_AI/)).toBeTruthy()
+
+    // The same row closes the card again; another row switches to its card.
+    fireEvent.click(row)
+    expect(screen.queryByRole('region', { name: '方舟二 详情' })).toBeNull()
+    fireEvent.click(row)
+
+    const input = within(screen.getByRole('region', { name: '方舟二 详情' })).getByRole('textbox')
+    fireEvent.change(input, { target: { value: '  决定已拍板，下次先问清楚范围  ' } })
+    fireEvent.keyDown(input, { key: 'a' })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.queryByRole('region', { name: '方舟二 详情' })).toBeNull()
+    await act(async () => { vi.advanceTimersByTime(SEAL_UNDO_MS + 10) })
+    expect(seal.mock.calls[0]![0]).toMatchObject({
+      project: 'MSC_AI', task: '方舟二', confirmationRef: 'dsh-ui:seal-click', note: '决定已拍板，下次先问清楚范围',
+    })
   })
 
   it('writes the seal only after the undo window, and undo cancels it', async () => {

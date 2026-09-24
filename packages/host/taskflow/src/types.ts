@@ -28,6 +28,11 @@ export interface TaskflowSealRequest {
   resolvesEventId?: string
   /** Fixed human gesture reference; P0 accepts only `dsh-ui:seal-click`. */
   confirmationRef: string
+  /**
+   * Sean's closing note / feedback for future AIs: one line, at most
+   * 280 characters after trimming; omit for a bare seal.
+   */
+  note?: string
 }
 
 /** Outcome of a seal attempt; never throws for business outcomes. */

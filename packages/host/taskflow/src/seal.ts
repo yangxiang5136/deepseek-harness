@@ -172,6 +172,8 @@ export interface SealAudit {
   confirmationRef: string
   /** Stable identity assigned to the appended seal event. */
   eventId: string
+  /** Sean's one-line closing note, already validated; omitted when none. */
+  note?: string
 }
 
 /**
@@ -196,6 +198,7 @@ export function formatSealLine(project: string, task: string, now: Date, audit: 
   }
   if (audit.resolvesEventId === undefined) payload.resolves_ts = audit.resolvesTs
   else payload.resolves_event_id = audit.resolvesEventId
+  if (audit.note !== undefined) payload.note = audit.note
   return JSON.stringify({
     schema_version: 2,
     ts,
