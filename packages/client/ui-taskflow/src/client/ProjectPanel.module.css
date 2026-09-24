@@ -61,18 +61,6 @@
   background: var(--tf-wait);
 }
 
-.pin {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.pin select {
-  max-width: 220px;
-  font-family: inherit;
-  font-size: 11px;
-}
-
 .close,
 .link {
   padding: 0;
@@ -233,4 +221,174 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Rows: a transparent hit area so hovering anywhere on the row reveals its
+   设为主线 chip; the chip stays hidden otherwise (Sean 2026-09-24). */
+.hit {
+  fill: transparent;
+}
+
+.pinBtn {
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.row:hover .pinBtn,
+.pinBtn:focus-visible {
+  opacity: 1;
+}
+
+.pinBtn:focus-visible {
+  outline: none;
+}
+
+.pinBtn rect {
+  fill: var(--dsw-alias-bg-layer-1, #fff);
+  stroke: var(--tf-main);
+  stroke-width: 1;
+}
+
+.pinBtn:hover rect,
+.pinBtn:focus-visible rect {
+  fill: var(--tf-main);
+}
+
+.pinBtn text {
+  font-size: 10px;
+  fill: var(--tf-main);
+}
+
+.pinBtn:hover text,
+.pinBtn:focus-visible text {
+  fill: var(--dsw-alias-bg-layer-1, #fff);
+}
+
+/* Tags of open debts are buttons that open the detail card. */
+.tagBtn {
+  cursor: pointer;
+}
+
+.tagBtn:focus-visible {
+  outline: none;
+}
+
+.tagBtn:hover rect,
+.tagBtn:focus-visible rect,
+.tagOpen rect {
+  stroke-width: 2;
+}
+
+.tagOpen rect {
+  fill: color-mix(in srgb, var(--tf-wait) 14%, transparent);
+}
+
+.settledItem {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pinInline {
+  padding: 0 6px;
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--tf-main);
+  cursor: pointer;
+  visibility: hidden;
+  background: transparent;
+  border: 1px solid var(--tf-main);
+  border-radius: 999px;
+}
+
+.settledItem:hover .pinInline,
+.pinInline:focus-visible {
+  visibility: visible;
+}
+
+/* Debt detail card. */
+.card {
+  padding: 8px 10px;
+  margin-top: 6px;
+  background: var(--dsw-alias-bg-layer-2, #f9fafb);
+  border: 1px solid var(--tf-wait);
+  border-radius: 6px;
+}
+
+.cardHead {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.cardStatus {
+  font-weight: 600;
+  color: var(--tf-wait);
+}
+
+.cardTask {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 2px 10px;
+  margin: 6px 0;
+}
+
+.facts dt {
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.mono {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+.story {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.promptHead {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+}
+
+.copy {
+  padding: 2px 10px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dsw-alias-bg-layer-1, #fff);
+  cursor: pointer;
+  background: var(--tf-main);
+  border: 0;
+  border-radius: 999px;
+}
+
+.prompt {
+  max-height: 180px;
+  padding: 6px 8px;
+  margin: 4px 0 0;
+  overflow: auto;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  user-select: text;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-radius: 4px;
 }
