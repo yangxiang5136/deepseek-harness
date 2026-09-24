@@ -32,6 +32,9 @@ import type {
 
 const SEAL_CONFIRMATION_REF = 'dsh-ui:seal-click'
 
+/** Longest closing note a seal carries (matches the attention board's Note). */
+export const SEAL_NOTE_MAX = 280
+
 function isSingleLineIdentity(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== ''
     && !value.includes('\0') && !value.includes('\r') && !value.includes('\n')
@@ -122,7 +125,9 @@ export class TaskflowLedgerGateway extends TypertRemoteService {
       || request.confirmationRef !== SEAL_CONFIRMATION_REF
       || (request.resolvesEventId === undefined && request.resolvesTs === '')
       || (request.resolvesEventId !== undefined
-        && !isCanonicalUuid(request.resolvesEventId))) {
+        && !isCanonicalUuid(request.resolvesEventId))
+      || (request.note !== undefined && (!isSingleLineIdentity(request.note)
+        || request.note.trim().length > SEAL_NOTE_MAX))) {
       return { sealed: false, reason: 'invalid-request', line: null }
     }
     const directory = ledgerDirectory()
@@ -147,6 +152,7 @@ export class TaskflowLedgerGateway extends TypertRemoteService {
           : { resolvesEventId: request.resolvesEventId }),
         confirmationRef: request.confirmationRef,
         eventId: randomUUID(),
+        ...(request.note === undefined ? {} : { note: request.note.trim() }),
       })
       const path = process.env.DSH_TASKFLOW_LEDGER
         ?? await ensureMonthlyLedger(directory, now)

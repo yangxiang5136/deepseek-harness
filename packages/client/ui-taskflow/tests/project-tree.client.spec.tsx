@@ -243,6 +243,23 @@ describe('handoff prompt', () => {
     expect(eventLine({ ...other.item, event: 'needs-you', payload: null })).toMatch(/等 Sean$/)
   })
 
+  it('carries Sean\u2019s latest closing notes on the project, newest first', () => {
+    const sealed = (minutesAgo: number, task: string, over: Record<string, unknown> = {}) =>
+      ev('done', minutesAgo, task, { surface: 'dsh', payload: { seal: true, ...over } })
+    const { events, item } = debtOf([
+      sealed(300, '旧任务', { note: '先对齐需求再动手' }),
+      sealed(200, '另一件', { note: '别再拆成三个 PR' }),
+      sealed(150, '无备注'),
+      sealed(100, '别的项目', { note: '不该出现' }),
+      debt(50, '当前', 'review'),
+    ].map(line => line.replace('"project":"ARK","task":"别的项目"', '"project":"job","task":"别的项目"')), '当前')
+    const prompt = buildHandoff(item, 'ARK', events, NOW).prompt
+    const section = prompt.slice(prompt.indexOf('## Sean 在这个项目上最近的收口反馈'))
+    expect(section.indexOf('别再拆成三个 PR')).toBeLessThan(section.indexOf('先对齐需求再动手'))
+    expect(prompt).not.toContain('不该出现')
+    expect(prompt).toContain("attention/bin/feedback -p 'ARK'")
+  })
+
   it('quotes shell arguments that carry apostrophes', () => {
     expect(shellArg("it's")).toBe("'it'\\''s'")
   })
@@ -253,7 +270,7 @@ describe('project panel on its own', () => {
     const onPin = vi.fn()
     const empty = treeOf([])
     const { unmount } = render(
-      <ProjectPanel tree={empty} events={[]} now={NOW} todos={{ status: 'ready', items: [] }} onPin={onPin} onClose={vi.fn()} />,
+      <ProjectPanel tree={empty} events={[]} now={NOW} todos={{ status: 'ready', items: [] }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />,
     )
     expect(screen.queryByRole('button', { name: /设为主线/ })).toBeNull()
     expect(screen.getByText('还没有任务')).toBeTruthy()
@@ -263,7 +280,7 @@ describe('project panel on its own', () => {
       ev('start', 30, '主线'), ev('start', 20, '放掉的'), ev('drop', 10, '放掉的'),
       debt(5, '一个名字特别特别长以至于要被截断的分支任务', 'review'),
     ], '主线')
-    render(<ProjectPanel tree={tree} events={[]} now={NOW} todos={{ status: 'loading' }} onPin={onPin} onClose={vi.fn()} />)
+    render(<ProjectPanel tree={tree} events={[]} now={NOW} todos={{ status: 'loading' }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />)
     fireEvent.click(screen.getByText(/已了结 1 条（完成 0）/))
     expect(screen.getByText(/✕ 放掉的/)).toBeTruthy()
     expect(screen.getByText(/^一个名字特别.*…$/)).toBeTruthy()
@@ -306,7 +323,7 @@ describe('project panel in the bar', () => {
     expect(within(panel).getByText(/09-28/)).toBeTruthy()
     expect(within(panel).getByText('还有 2 条')).toBeTruthy()
     // Unpinned, the most active task stands in as the mainline.
-    expect(within(panel).getByText('主线是推测的，鼠标移到任务上可改')).toBeTruthy()
+    expect(within(panel).getByText('主线 · 推测，悬停可改')).toBeTruthy()
     expect(within(panel).getByText('主线占 57%')).toBeTruthy()
     expect(within(panel).getByText('等你合并')).toBeTruthy()
     expect(within(panel).getByText('等你收口')).toBeTruthy()
@@ -317,7 +334,7 @@ describe('project panel in the bar', () => {
     expect(readPins()).toEqual({})
     fireEvent.keyDown(confirm, { key: 'Enter' })
     expect(readPins()).toEqual({ ARK: '大分支' })
-    expect(within(panel).queryByText('主线是推测的，鼠标移到任务上可改')).toBeNull()
+    expect(within(panel).queryByText('主线 · 推测，悬停可改')).toBeNull()
 
     // Pin a settled task from the 已了结 list.
     fireEvent.click(within(panel).getByText(/已了结 1 条/))
@@ -362,6 +379,9 @@ describe('project panel in the bar', () => {
     const more = within(panel).getByText('还有 4 条未了结分支')
     fireEvent.click(more)
     for (const label of ['进行中', '停放', '5小时无动静']) expect(within(panel).getByText(label)).toBeTruthy()
+    fireEvent.click(within(panel).getByRole('button', { name: '查看「相邻方向」详情' }))
+    expect(within(panel).getByRole('button', { name: '不做了，收口' })).toBeTruthy()
+    fireEvent.click(within(panel).getByText('关闭'))
     fireEvent.click(within(panel).getByText('只看前 8 条'))
     expect(within(panel).queryByText('进行中')).toBeNull()
 
@@ -391,11 +411,11 @@ describe('project panel in the bar', () => {
     expect(within(card).getAllByText(/claude-code 开工/).length).toBeGreaterThan(0)
 
     // jsdom has no clipboard: the card asks for a manual copy.
-    fireEvent.click(within(card).getByText('复制 prompt'))
-    await within(card).findByText('复制失败，请手动选中下面的文字')
+    fireEvent.click(within(card).getByText('复制续接 prompt'))
+    await within(card).findByText('复制失败，请展开预览手动选中')
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
-    fireEvent.click(within(card).getByText('复制 prompt'))
+    fireEvent.click(within(card).getByText('复制续接 prompt'))
     await within(card).findByText('已复制 ✓')
     expect(writeText.mock.calls[0]?.[0]).toMatch(/^# 续接任务：评审稿/)
     Reflect.deleteProperty(navigator, 'clipboard')
@@ -412,7 +432,7 @@ describe('project panel in the bar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'ARK' }))
     const panel = screen.getByRole('region', { name: 'ARK 项目树' })
     await within(panel).findByText('待办读取失败：down')
-    expect(within(panel).getByText('近 7 天没有活动记录')).toBeTruthy()
+    expect(within(panel).getByText('近 7 天没有活动')).toBeTruthy()
     expect(within(panel).getByText('等你审阅')).toBeTruthy()
   })
 

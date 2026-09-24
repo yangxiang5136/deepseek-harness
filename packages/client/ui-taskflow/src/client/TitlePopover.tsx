@@ -1,121 +1,31 @@
-import { useState, type ReactElement } from 'react'
-import {
-  fmtDur, noHeartbeat,
-  type Chip, type FoldModel, type NeedsYouItem,
-} from './fold.ts'
-import type { TaskFlowFace } from './face.ts'
-import { doCopy, type CopyState } from './interaction.ts'
+import type { ReactElement } from 'react'
+import { fmtDur, noHeartbeat, type Chip, type FoldModel } from './fold.ts'
 import css from './TitlePopover.module.css'
 
-/** Where the human confirmed a seal: the bar's own checkmark. */
-const SEAL_CONFIRMATION_REF = 'dsh-ui:seal-click'
-
 /**
- * Owner-fed props: the folded model, the clock, the chips that overflowed
- * the row (the parent's split — one source with the +N marker), and the
- * seal verb.
+ * Owner-fed props: the folded model, the clock, and the chips that overflowed
+ * the row (the parent's split — one source with the +N marker).
  */
 export interface TitlePopoverProps {
   model: FoldModel
   now: number
   overflow: readonly Chip[]
-  seal: TaskFlowFace['seal']
-}
-
-/** Per-debt seal progress, keyed by its stable or legacy composite identity. */
-type SealState = 'busy' | 'sealed' | { failed: string }
-
-function debtKey(debt: NeedsYouItem): string {
-  return debt.eventId === undefined
-    ? `legacy\u0000${debt.project}\u0000${debt.task}\u0000${debt.ts}\u0000${debt.ledgerIndex}`
-    : `id\u0000${debt.eventId}`
 }
 
 /**
- * The single intake popover behind the TaskFlow title (v19/v20): three groups
- * — open seal debts (with the seal checkmark, the P2 headline verb, and the
- * copy-seal-command fallback), no-heartbeat lanes (fail-loud, never silently
- * dropped), and running chips that overflowed the row. Zero groups renders
- * 一切正常 rather than nothing, so an empty popover still answers the click.
+ * The popover behind the TaskFlow title: no-heartbeat lanes (fail-loud,
+ * never silently dropped) and running chips that overflowed the row. Open
+ * debts live in the 待你收口 tray alone (2026-09-24: the popover's copy of
+ * them was a duplicate entry). Zero groups renders 一切正常 rather than
+ * nothing, so an empty popover still answers the click.
  */
-export function TitlePopover({ model, now, overflow, seal }: TitlePopoverProps): ReactElement {
-  const [sealStates, setSealStates] = useState<Record<string, SealState>>({})
-  const [copied, setCopied] = useState<CopyState | null>(null)
-
-  const sealOne = (debt: NeedsYouItem): void => {
-    const key = debtKey(debt)
-    setSealStates(prev => ({ ...prev, [key]: 'busy' }))
-    void seal({
-      project: debt.project,
-      task: debt.task,
-      resolvesTs: debt.ts,
-      ...(debt.eventId === undefined ? {} : { resolvesEventId: debt.eventId }),
-      confirmationRef: SEAL_CONFIRMATION_REF,
-    }).then(
-      (outcome) => {
-        setSealStates(prev => ({
-          ...prev, [key]: outcome.sealed ? 'sealed' : { failed: outcome.message ?? 'seal refused' },
-        }))
-      },
-      (reason: unknown) => {
-        setSealStates(prev => ({
-          ...prev, [key]: { failed: reason instanceof Error ? reason.message : String(reason) },
-        }))
-      },
-    )
-  }
-
+export function TitlePopover({ model, now, overflow }: TitlePopoverProps): ReactElement {
   const dead = noHeartbeat(model)
-  const empty = model.needsYou.length === 0 && dead.length === 0 && overflow.length === 0
+  const empty = dead.length === 0 && overflow.length === 0
 
   return (
     <div className={css.pop} onClick={(e) => { e.stopPropagation() }}>
       {empty && <div className={css.allClear}>一切正常</div>}
-      {model.needsYou.length > 0 && (
-        <>
-          <div className={css.group}>待收口</div>
-          {model.needsYou.map((debt) => {
-            const key = debtKey(debt)
-            const state = sealStates[key]
-            const ref = typeof debt.payload?.ref === 'string' ? debt.payload.ref : null
-            const note = typeof debt.payload?.note === 'string' ? debt.payload.note : null
-            return (
-              <div key={key}>
-                <div className={css.item}>
-                  <span className={css.key}>{debt.kind}</span>
-                  <span className={css.value}>
-                    {`${debt.task} · 欠账 ${fmtDur(debt.owed)}`}
-                    {ref !== null && <div className={css.ref}>{ref}</div>}
-                    {note !== null && <div className={css.note}>{note}</div>}
-                  </span>
-                </div>
-                <div className={css.actions}>
-                  {state === 'sealed'
-                    ? <span className={css.sealed}>已收口 ✓</span>
-                    : (
-                      <button
-                        type="button"
-                        className={css.seal}
-                        disabled={state === 'busy'}
-                        onClick={() => { sealOne(debt) }}
-                      >
-                        {state === 'busy' ? '收口中…' : '收口 ✓'}
-                      </button>
-                    )}
-                  <button
-                    type="button"
-                    className={css.copy}
-                    onClick={() => { doCopy(`收口 ${debt.task}`, setCopied) }}
-                  >
-                    {copied === 'done' ? '已复制 ✓' : copied === 'manual' ? '复制失败' : '复制收口指令'}
-                  </button>
-                  {typeof state === 'object' && <span className={css.error}>{state.failed}</span>}
-                </div>
-              </div>
-            )
-          })}
-        </>
-      )}
       {dead.length > 0 && (
         <>
           <div className={css.group}>无心跳</div>

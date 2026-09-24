@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the ui-layout SlotMap merge (the shell.overlay list slot).
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
-import { buildChips, buildModel, CHIP_ROW_W, estTextW, MODEL_W, REFRESH_MS, splitChips, type TextMeasure } from './fold.ts'
+import { buildChips, buildModel, CHIP_ROW_W, displayProject, estTextW, MODEL_W, REFRESH_MS, splitChips, type TextMeasure } from './fold.ts'
 import type { TaskFlowFace } from './face.ts'
 import type { ClickPop } from './interaction.ts'
 import { ChipRow } from './ChipRow.tsx'
@@ -60,6 +60,7 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
   const [clickPop, setClickPop] = useState<ClickPop | null>(null)
   const [titleOpen, setTitleOpen] = useState(false)
   const [openProject, setOpenProject] = useState<string | null>(null)
+  const [cardTask, setCardTask] = useState<string | null>(null)
   const [pins, setPins] = useState(readPins)
   const [todoState, setTodoState] = useState<TodoState>({ status: 'loading' })
 
@@ -199,7 +200,7 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
           ▾
         </button>
       </div>
-      {titleOpen && <TitlePopover model={model} now={now} overflow={chips.overflow} seal={seal} />}
+      {titleOpen && <TitlePopover model={model} now={now} overflow={chips.overflow} />}
       <div className={css.body}>
         <div ref={leftRef} className={css.left}>
           <HistoryStrip
@@ -230,14 +231,30 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
             setPins(next)
             writePins(next)
           }}
-          onClose={() => { setOpenProject(null) }}
+          cardTask={cardTask}
+          onCard={setCardTask}
+          onSeal={(debt, note) => { sealer.queue(debt, note) }}
+          onClose={() => {
+            setOpenProject(null)
+            setCardTask(null)
+          }}
         />
       )}
       <NeedsYouTray
         debts={model.needsYou}
         sealer={sealer}
         openProject={openProject}
-        onToggleProject={(project) => { setOpenProject(openProject === project ? null : project) }}
+        onToggleProject={(project) => {
+          setOpenProject(openProject === project ? null : project)
+          setCardTask(null)
+        }}
+        openTask={cardTask}
+        onOpenDebt={(debt) => {
+          const project = displayProject(debt.project)
+          const same = openProject === project && cardTask === debt.task
+          setOpenProject(project)
+          setCardTask(same ? null : debt.task)
+        }}
       />
     </div>
   )

@@ -7,6 +7,23 @@
  */
 
 .banner {
+  /*
+   * Shared chrome tokens (2026-09-24, after the attention board): 8px
+   * controls, 10px boxes, hairline borders, soft tinted fills — no heavy
+   * outlines. Children (tray, project panel, popover) inherit them.
+   */
+  --tf-main: var(--dsw-alias-state-business-primary, #4176e6);
+  --tf-wait: var(--dsw-alias-state-warn-primary, #c98313);
+  --tf-live: var(--dsw-alias-state-success-primary, #2f9e6a);
+  --tf-quiet: var(--dsw-alias-label-tertiary, #9ca3af);
+  --tf-line: var(--dsw-alias-border-l1, #eceff3);
+  --tf-edge: var(--dsw-alias-border-l2, #dfe3e7);
+  --tf-radius: 8px;
+  --tf-radius-box: 10px;
+  --tf-main-soft: color-mix(in srgb, var(--tf-main) 8%, transparent);
+  --tf-main-edge: color-mix(in srgb, var(--tf-main) 32%, transparent);
+  --tf-wait-soft: color-mix(in srgb, var(--tf-wait) 10%, transparent);
+  --tf-wait-edge: color-mix(in srgb, var(--tf-wait) 40%, transparent);
   position: absolute;
   right: 0;
   bottom: 0;
@@ -80,7 +97,7 @@
   color: var(--dsw-alias-label-secondary, #475569);
   cursor: pointer;
   background: var(--dsw-alias-bg-layer-1, #fff);
-  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border: 1px solid var(--tf-line);
   border-radius: 50%;
   transition:
     background 0.12s ease,

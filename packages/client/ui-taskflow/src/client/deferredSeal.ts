@@ -31,8 +31,11 @@ export interface DeferredSeal {
   lastPending: NeedsYouItem | null
   /** Number of seals still inside their undo window. */
   pendingCount: number
-  /** Queue a seal; it is written after {@link SEAL_UNDO_MS} unless undone. */
-  queue(debt: NeedsYouItem): void
+  /**
+   * Queue a seal; it is written after {@link SEAL_UNDO_MS} unless undone.
+   * @param note - Sean's optional one-line closing note / feedback for AIs.
+   */
+  queue(debt: NeedsYouItem, note?: string): void
   /** Cancel a queued seal that has not been written yet. */
   undo(debt: NeedsYouItem): void
 }
@@ -64,8 +67,9 @@ export function useDeferredSeal(seal: TaskFlowFace['seal'], delayMs: number = SE
     })
   }, [])
 
-  const queue = useCallback((debt: NeedsYouItem) => {
+  const queue = useCallback((debt: NeedsYouItem, note?: string) => {
     const key = debtKey(debt)
+    const trimmed = note?.trim() ?? ''
     if (timers.current.has(key)) return
     settle(key, 'pending')
     setQueueOrder(prev => [...prev.filter(d => debtKey(d) !== key), debt])
@@ -79,6 +83,7 @@ export function useDeferredSeal(seal: TaskFlowFace['seal'], delayMs: number = SE
         resolvesTs: debt.ts,
         ...(debt.eventId === undefined ? {} : { resolvesEventId: debt.eventId }),
         confirmationRef: SEAL_CONFIRMATION_REF,
+        ...(trimmed === '' ? {} : { note: trimmed }),
       }).then(
         (outcome) => { settle(key, outcome.sealed ? 'sealed' : { failed: outcome.message ?? 'seal refused' }) },
         (reason: unknown) => { settle(key, { failed: reason instanceof Error ? reason.message : String(reason) }) },

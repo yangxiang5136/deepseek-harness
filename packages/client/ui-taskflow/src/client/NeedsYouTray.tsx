@@ -1,7 +1,6 @@
 import { useMemo, useState, type ReactElement } from 'react'
 import { displayProject, groupDebtsByProject, paletteColor, type NeedsYouItem } from './fold.ts'
 import { debtKey, type DeferredSeal } from './deferredSeal.ts'
-import { doCopy, type CopyState } from './interaction.ts'
 import css from './NeedsYouTray.module.css'
 
 /** Rows shown per project column before 还有 N 条 (Sean, 2026-09-23). */
@@ -50,6 +49,10 @@ export interface NeedsYouTrayProps {
   openProject: string | null
   /** Toggle a project's tree from its column head. */
   onToggleProject: (project: string) => void
+  /** Task whose card is open in that project's tree, if any (its row shows pressed). */
+  openTask: string | null
+  /** Open a debt's card: its project's tree unfolds with the card open. */
+  onOpenDebt: (debt: NeedsYouItem) => void
 }
 
 /**
@@ -57,17 +60,17 @@ export interface NeedsYouTrayProps {
  * bar, one column per project (busiest first, longest-owed first inside), so
  * sealing no longer hides behind the title popover. Each column shows
  * {@link TRAY_ROWS_PER_PROJECT} rows until expanded; a row's title opens its
- * ref and note; the checkmark queues a deferred seal with a 撤销 window; a
- * project name opens that project's tree. The tray folds to its header and
+ * card in that project's tree; the checkmark queues a bare deferred seal with
+ * a 撤销 window; a project name opens that project's tree. The tray folds to its header and
  * remembers that choice.
  * @param props - debts plus the deferred seal controller.
  * @returns The tray element.
  */
-export function NeedsYouTray({ debts, sealer, openProject, onToggleProject }: NeedsYouTrayProps): ReactElement {
+export function NeedsYouTray({
+  debts, sealer, openProject, onToggleProject, openTask, onOpenDebt,
+}: NeedsYouTrayProps): ReactElement {
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [openProjects, setOpenProjects] = useState<Record<string, boolean>>({})
-  const [detail, setDetail] = useState<string | null>(null)
-  const [copied, setCopied] = useState<{ key: string; state: CopyState } | null>(null)
 
   const visible = useMemo(
     () => debts.filter((debt) => {
@@ -90,7 +93,6 @@ export function NeedsYouTray({ debts, sealer, openProject, onToggleProject }: Ne
       <button type="button" className={css.head} aria-expanded={!collapsed} onClick={toggle}>
         <span className={css.title}>待你收口</span>
         <span className={css.count}>{visible.length}</span>
-        {!collapsed && <span className={css.hint}>按项目 · 等得最久的在前</span>}
         <span className={css.spacer} />
         <span className={css.hint}>{collapsed ? '展开' : '折叠'}</span>
       </button>
@@ -120,8 +122,7 @@ export function NeedsYouTray({ debts, sealer, openProject, onToggleProject }: Ne
                     {rows.map((debt) => {
                       const key = debtKey(debt)
                       const state = sealer.states[key]
-                      const ref = typeof debt.payload?.ref === 'string' ? debt.payload.ref : null
-                      const note = typeof debt.payload?.note === 'string' ? debt.payload.note : null
+                      const focused = openProject === displayProject(debt.project) && openTask === debt.task
                       const isDecision = debt.kind === 'decision'
                       return (
                         <div key={key} className={css.row}>
@@ -133,8 +134,8 @@ export function NeedsYouTray({ debts, sealer, openProject, onToggleProject }: Ne
                               type="button"
                               className={css.task}
                               title={debt.task}
-                              aria-expanded={detail === key}
-                              onClick={() => { setDetail(detail === key ? null : key) }}
+                              aria-expanded={focused}
+                              onClick={() => { onOpenDebt(debt) }}
                             >
                               {debt.task}
                             </button>
@@ -149,20 +150,6 @@ export function NeedsYouTray({ debts, sealer, openProject, onToggleProject }: Ne
                             </button>
                           </div>
                           {typeof state === 'object' && <div className={css.error}>{`收口失败：${state.failed}`}</div>}
-                          {detail === key && (
-                            <div className={css.detail}>
-                              {displayProject(debt.project) !== debt.project && <div>{`原项目名：${debt.project}`}</div>}
-                              {ref !== null && <div className={css.ref}>{ref}</div>}
-                              {note !== null && <div className={css.note}>{note}</div>}
-                              <button
-                                type="button"
-                                className={css.copy}
-                                onClick={() => { doCopy(`收口 ${debt.task}`, (s) => { setCopied({ key, state: s }) }) }}
-                              >
-                                {copied?.key === key ? (copied.state === 'done' ? '已复制 ✓' : '复制失败') : '复制收口指令'}
-                              </button>
-                            </div>
-                          )}
                         </div>
                       )
                     })}

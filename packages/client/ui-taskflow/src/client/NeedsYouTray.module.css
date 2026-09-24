@@ -32,12 +32,12 @@
 }
 
 .count {
-  padding: 0 6px;
+  padding: 0 7px;
   font-size: 10px;
   font-weight: 600;
-  color: var(--dsw-alias-state-warn-primary, #b45309);
-  border: 1px solid var(--dsw-alias-state-warn-primary, #d97706);
-  border-radius: 6px;
+  color: var(--tf-wait);
+  background: var(--tf-wait-soft);
+  border-radius: 999px;
 }
 
 .hint {
@@ -65,8 +65,8 @@
   min-width: 0;
   padding: 6px 8px;
   background: var(--dsw-alias-bg-layer-2, #f9fafb);
-  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
-  border-radius: 6px;
+  border: 1px solid var(--tf-line);
+  border-radius: var(--tf-radius-box);
 }
 
 .colHead {
@@ -99,9 +99,8 @@
   white-space: nowrap;
   cursor: pointer;
   background: var(--dsw-alias-bg-layer-1, #fff);
-  border: 1px solid var(--dsw-alias-border-l2, #d1d5db);
-  border-radius: 999px;
-  box-shadow: 0 1px 0 rgb(15 23 42 / 6%);
+  border: 1px solid var(--tf-edge);
+  border-radius: var(--tf-radius);
   transition: border-color 0.12s, color 0.12s, background-color 0.12s;
 }
 
@@ -114,19 +113,19 @@
 }
 
 .project:hover {
-  color: var(--dsw-alias-state-business-primary, #4176e6);
-  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+  color: var(--tf-main);
+  border-color: var(--tf-main-edge);
 }
 
 .project:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary, #4176e6);
+  outline: 2px solid var(--tf-main-edge);
   outline-offset: 1px;
 }
 
 .project[aria-pressed='true'] {
-  color: var(--dsw-alias-state-business-primary, #4176e6);
-  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 12%, transparent);
-  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+  color: var(--tf-main);
+  background: var(--tf-main-soft);
+  border-color: var(--tf-main-edge);
 }
 
 .project[aria-pressed='true']::after {
@@ -141,7 +140,7 @@
 
 .row {
   padding: 3px 0;
-  border-top: 1px solid var(--dsw-alias-border-l1, #f1f5f9);
+  border-top: 1px solid var(--tf-line);
 }
 
 .line {
@@ -153,20 +152,19 @@
 .kind,
 .kindDecision {
   flex: none;
-  padding: 0 5px;
+  padding: 0 6px;
   font-size: 10px;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
 .kind {
   color: var(--dsw-alias-label-secondary, #6b7280);
-  background: var(--dsw-alias-bg-layer-1, #fff);
-  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  background: var(--dsw-alias-bg-layer-2, #f4f5f7);
 }
 
 .kindDecision {
-  color: var(--dsw-alias-interactive-primary, #2563eb);
-  border: 1px solid var(--dsw-alias-interactive-primary, #2563eb);
+  color: var(--tf-main);
+  background: var(--tf-main-soft);
 }
 
 .task {
@@ -185,8 +183,9 @@
   border: 0;
 }
 
-.task:hover {
-  text-decoration: underline;
+.task:hover,
+.task[aria-expanded='true'] {
+  color: var(--tf-main);
 }
 
 .age {
@@ -197,49 +196,39 @@
 
 .ok {
   flex: none;
-  width: 20px;
+  width: 22px;
   height: 20px;
   padding: 0;
   font-family: inherit;
   font-size: 11px;
-  color: var(--dsw-alias-label-primary);
+  color: var(--tf-quiet);
   cursor: pointer;
-  background: transparent;
-  border: 1px solid var(--dsw-alias-state-warn-primary, #d97706);
-  border-radius: 5px;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  border: 1px solid var(--tf-edge);
+  border-radius: var(--tf-radius);
+  transition: color 0.12s, background-color 0.12s, border-color 0.12s;
 }
 
 .ok:hover {
-  background: var(--dsw-alias-interactive-bg-hover, #e8eefb);
+  color: var(--tf-main);
+  background: var(--tf-main-soft);
+  border-color: var(--tf-main-edge);
 }
 
-.detail {
-  margin: 2px 0 2px 4px;
-  word-break: break-all;
-  white-space: pre-wrap;
-  user-select: text;
-}
 
-.ref {
-  color: var(--dsw-alias-label-secondary, #64748b);
-}
 
-.note {
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
-}
 
-.copy,
 .more,
 .undoBtn {
-  padding: 1px 8px;
+  padding: 1px 10px;
   margin-top: 3px;
   font-family: inherit;
   font-size: 10px;
   color: var(--dsw-alias-label-secondary, #6b7280);
   cursor: pointer;
-  background: transparent;
-  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
-  border-radius: 5px;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  border: 1px solid var(--tf-edge);
+  border-radius: var(--tf-radius);
 }
 
 .more {
@@ -247,7 +236,7 @@
 }
 
 .error {
-  color: var(--dsw-alias-state-danger-primary, #dc2626);
+  color: var(--dsw-alias-state-error-primary, #dc2626);
 }
 
 .undo {
@@ -257,8 +246,8 @@
   padding: 4px 8px;
   margin-top: 6px;
   background: var(--dsw-alias-bg-layer-3, #fff);
-  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
-  border-radius: 6px;
+  border: 1px solid var(--tf-line);
+  border-radius: var(--tf-radius);
 }
 
 .undoText {
