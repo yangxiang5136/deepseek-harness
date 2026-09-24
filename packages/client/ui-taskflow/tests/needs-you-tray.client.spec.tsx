@@ -129,18 +129,6 @@ describe('NeedsYouTray', () => {
     })
   })
 
-  it('keeps the collapsed count in step with the tray inside the undo window', () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    const seal = vi.fn().mockResolvedValue({ sealed: true, message: null })
-    renderBar(LEDGER, seal)
-    fireEvent.click(screen.getByRole('button', { name: '收口 数字一' }))
-    fireEvent.click(screen.getByText('▾'))
-    expect(screen.getByRole('img', { name: '待你收口 4' }).textContent).toBe('4')
-    fireEvent.click(screen.getByRole('img', { name: '待你收口 4' }))
-    fireEvent.click(screen.getByRole('button', { name: '撤销' }))
-    fireEvent.click(screen.getByText('▾'))
-    expect(screen.getByRole('img', { name: '待你收口 5' })).toBeTruthy()
-  })
 
   it('writes the seal only after the undo window, and undo cancels it', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
@@ -179,15 +167,13 @@ describe('NeedsYouTray', () => {
     ['sealed', () => Promise.resolve({ sealed: true, message: null }), 4],
     ['refused', () => Promise.resolve({ sealed: false, message: 'no-open-needs-you' }), 5],
     ['failed', () => Promise.reject(new Error('down')), 5],
-  ] as const)('keeps the collapsed count equal to the tray after the undo window (%s)', async (_state, outcome, expected) => {
+  ] as const)('counts a row out of the tray only while its seal is writing or written (%s)', async (_state, outcome, expected) => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     renderBar(LEDGER, vi.fn(outcome))
     fireEvent.click(screen.getByRole('button', { name: '收口 数字一' }))
     await act(async () => { vi.advanceTimersByTime(SEAL_UNDO_MS + 10) })
     const trayCount = screen.getByRole('region', { name: '待你收口' }).querySelector('button span:nth-child(2)')?.textContent
     expect(trayCount).toBe(String(expected))
-    fireEvent.click(screen.getByText('▾'))
-    expect(screen.getByRole('img', { name: `待你收口 ${expected}` }).textContent).toBe(String(expected))
   })
 
   it('queues one seal per debt and ignores an undo for a debt that is not pending', async () => {

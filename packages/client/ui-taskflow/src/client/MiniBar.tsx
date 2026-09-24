@@ -11,8 +11,6 @@ export interface MiniBarProps {
   loading: boolean
   /** Read failure to surface on the label (fail-loud). */
   error?: string | undefined
-  /** Open debts still shown in the tray (same filter); 0 hides the pill. */
-  debtCount: number
   onExpand: () => void
   /** Parent-owned ref: the avoidance publisher observes this root. */
   rootRef: Ref<HTMLDivElement>
@@ -25,11 +23,9 @@ export interface MiniBarProps {
  * alone ellipsizes, then its minutes and the +N parallel count in a meta span;
  * an idle current task shows a 闲置 pill instead of minutes. A read failure
  * paints the label red instead of letting the bar quietly freeze; loading and
- * nothing-running read as quiet placeholders. At the right edge an amber
- * pill counts what waits in 待你收口, so the collapsed bar still says whether
- * anything needs Sean.
+ * nothing-running read as quiet placeholders.
  */
-export function MiniBar({ model, now, loading, error, debtCount, onExpand, rootRef }: MiniBarProps): ReactElement {
+export function MiniBar({ model, now, loading, error, onExpand, rootRef }: MiniBarProps): ReactElement {
   const winStart = model.history.length > 0
     ? Math.min(...model.history.map(s => s.start))
     : now
@@ -80,11 +76,6 @@ export function MiniBar({ model, now, loading, error, debtCount, onExpand, rootR
         ))}
         <div className={css.now} />
       </div>
-      {!loading && debtCount > 0 && (
-        <span className={css.debt} role="img" aria-label={`待你收口 ${debtCount}`} title={`待你收口 ${debtCount}`}>
-          {debtCount}
-        </span>
-      )}
     </div>
   )
 }
