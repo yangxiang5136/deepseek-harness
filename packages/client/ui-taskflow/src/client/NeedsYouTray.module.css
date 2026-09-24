@@ -85,8 +85,11 @@
 }
 
 .project {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
   min-width: 0;
-  padding: 0;
+  padding: 1px 8px;
   overflow: hidden;
   font-family: inherit;
   font-size: inherit;
@@ -95,15 +98,40 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
-  background: transparent;
-  border: 0;
-  border-bottom: 1px dashed var(--dsw-alias-label-tertiary, #9ca3af);
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  border: 1px solid var(--dsw-alias-border-l2, #d1d5db);
+  border-radius: 999px;
+  box-shadow: 0 1px 0 rgb(15 23 42 / 6%);
+  transition: border-color 0.12s, color 0.12s, background-color 0.12s;
 }
 
-.project:hover,
+/* Disclosure chevron: says "this opens something" without changing the name. */
+.project::after {
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  content: '▸';
+}
+
+.project:hover {
+  color: var(--dsw-alias-state-business-primary, #4176e6);
+  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+}
+
+.project:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4176e6);
+  outline-offset: 1px;
+}
+
 .project[aria-pressed='true'] {
   color: var(--dsw-alias-state-business-primary, #4176e6);
-  border-bottom-color: currentcolor;
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 12%, transparent);
+  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+}
+
+.project[aria-pressed='true']::after {
+  color: inherit;
+  content: '▾';
 }
 
 .colCount {
