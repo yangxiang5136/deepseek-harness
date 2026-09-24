@@ -290,6 +290,18 @@ describe('lane homing (v13/v17/v18)', () => {
     expect(model.lanes[0]).toMatchObject({ status: 'running', ticks: 2 })
   })
 
+  it('closes a lane that went silent once its orchestrator finishes (no all-day 无心跳)', () => {
+    const model = buildModel([
+      ev('start', T0, { task: 'orchestrate' }),
+      delegate(T0 + 1000, 'orchestrate'),
+      dsh('start', T0 + 2000, 'build'),
+      dsh('done', T0 + 2000 + LANE_IDLE_MS + 60_000, 'build'),
+      ev('done', T0 + 2000 + LANE_IDLE_MS + 120_000, { task: 'orchestrate' }),
+    ], T0 + 2000 + LANE_IDLE_MS + 180_000)
+    expect(model.lanes).toHaveLength(0)
+    expect(noHeartbeat(model)).toEqual([])
+  })
+
   it('drops a stale lane and lets the very dsh event that found it stale fall to the mainline', () => {
     const model = buildModel([
       delegate(T0, 'stale'),

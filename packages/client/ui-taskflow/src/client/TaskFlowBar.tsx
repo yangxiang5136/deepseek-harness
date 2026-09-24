@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the ui-layout SlotMap merge (the shell.overlay list slot).
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
-import { buildChips, buildModel, CHIP_ROW_W, displayProject, estTextW, MODEL_W, REFRESH_MS, splitChips, type TextMeasure } from './fold.ts'
+import {
+  buildChips, buildModel, CHIP_ROW_W, displayProject, estTextW, MODEL_W, noHeartbeat, REFRESH_MS, splitChips,
+  type TextMeasure,
+} from './fold.ts'
 import type { TaskFlowFace } from './face.ts'
 import type { ClickPop } from './interaction.ts'
 import { ChipRow } from './ChipRow.tsx'
@@ -180,6 +183,10 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
     )
   }
 
+  // Silent work is fail-loud (decision ㉑): its count rides the head so the
+  // popover that lists it is never the only place it shows.
+  const silent = noHeartbeat(model).length
+
   const closeAll = (): void => {
     setClickPop(null)
     setTitleOpen(false)
@@ -201,6 +208,20 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
         >
           TaskFlow
         </span>
+        {silent > 0 && (
+          <button
+            type="button"
+            className={css.badge}
+            aria-expanded={titleOpen}
+            title="静默超过 30 分钟的泳道与后台任务，点开看是哪几条"
+            onClick={(e) => {
+              e.stopPropagation()
+              setTitleOpen(prev => !prev)
+            }}
+          >
+            {`无心跳 ${silent}`}
+          </button>
+        )}
         {ledger.error !== undefined && <span className={css.error}>{`账本读取失败：${ledger.error}`}</span>}
         <span className={css.spacer} />
         <button

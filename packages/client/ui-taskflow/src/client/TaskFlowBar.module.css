@@ -100,6 +100,31 @@
   user-select: none;
 }
 
+/* 无心跳 N beside the title: amber like the other things waiting on Sean; opens
+   the title popover that lists the silent lanes. */
+.badge {
+  flex: none;
+  padding: 0 8px;
+  font: var(--tf-font-ctrl);
+  font-weight: var(--tf-fw-accent);
+  color: var(--tf-wait-ink);
+  cursor: pointer;
+  /* Opaque base: the head's hover fill must not show through and dim the text. */
+  background: linear-gradient(var(--tf-wait-soft), var(--tf-wait-soft)), var(--dsw-alias-bg-layer-1, #fff);
+  border: 1px solid var(--tf-wait-edge);
+  border-radius: 999px;
+}
+
+.badge:hover,
+.badge[aria-expanded='true'] {
+  border-color: var(--tf-wait);
+}
+
+.badge:focus-visible {
+  outline: 2px solid var(--tf-wait-ink);
+  outline-offset: 1px;
+}
+
 /* Fail-loud read error, always visible while expanded. */
 .error {
   overflow: hidden;
@@ -116,6 +141,7 @@
 /* The ▾ glyph is an icon, sized outside the type scale. */
 .collapse {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
   width: 26px;

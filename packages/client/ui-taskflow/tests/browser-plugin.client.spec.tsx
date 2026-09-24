@@ -205,8 +205,31 @@ describe('TaskFlowBar surface', () => {
     return { events: parseLedgerText(lines.join('\n')), read: true, exists: true }
   }
 
+  it('counts silent work beside the title and opens its list without collapsing', () => {
+    // Local wall-clock noon: sameDay() folds in the machine's zone.
+    const now = new Date(2026, 7, 20, 12).getTime()
+    vi.spyOn(Date, 'now').mockReturnValue(now)
+    const at = (minutesAgo: number): string => new Date(now - minutesAgo * 60_000).toISOString()
+    // 旧任务 was preempted 80 min ago and never finished: a silent background task.
+    renderBar(stateOf([
+      ledgerLine('start', at(90), { task: '旧任务' }),
+      ledgerLine('start', at(80), { task: '新任务' }),
+      ledgerLine('start', at(5), { task: '新任务' }),
+    ]), vi.fn())
+    fireEvent.click(screen.getByText(/新任务/))
+    const badge = screen.getByRole('button', { name: '无心跳 1' })
+    expect(badge.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(badge)
+    expect(badge.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByText('无心跳')).toBeTruthy()
+    expect(screen.getByText(/旧任务 · /)).toBeTruthy()
+    fireEvent.click(badge)
+    expect(screen.queryByText('无心跳')).toBeNull()
+    expect(screen.getByText('TaskFlow')).toBeTruthy()
+  })
+
   it('walks mini → expanded → quiet popover → tray card → bare seal with the audit pin intact', async () => {
-    const now = Date.parse('2026-08-20T12:00:00-04:00')
+    const now = new Date(2026, 7, 20, 12).getTime()
     vi.spyOn(Date, 'now').mockReturnValue(now)
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const eventId = '123e4567-e89b-42d3-a456-426614174001'
@@ -225,6 +248,9 @@ describe('TaskFlowBar surface', () => {
     // Collapsed mini bar carries the current task label.
     fireEvent.click(screen.getByText(/移植 client/))
     // The title popover no longer lists debts: they live in the tray alone.
+    expect(screen.queryByRole('button', { name: /^无心跳/ })).toBeNull()
+    // Nothing silent renders nothing — not even a stray count.
+    expect(screen.getByText('TaskFlow').parentElement?.textContent).toBe('TaskFlow▾')
     fireEvent.click(screen.getByText('TaskFlow'))
     expect(screen.getByText('一切正常')).toBeTruthy()
     expect(screen.queryByText('待收口')).toBeNull()

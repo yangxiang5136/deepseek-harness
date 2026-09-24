@@ -503,11 +503,13 @@ export function buildModel(events: readonly AttentionEvent[], nowMs: number): Fo
         continue
       }
     }
-    // v17: a terminal closes every running lane whose delegateTask matches —
-    // the orchestrator's own done/drop is the lane's closing boundary.
+    // v17: a terminal closes every open lane whose delegateTask matches — the
+    // orchestrator's own done/drop is the lane's closing boundary, also for a
+    // lane that went silent earlier (interrupted), which would otherwise sit in
+    // 无心跳 for the rest of the day after the work was finished.
     if (e.event === 'done' || e.event === 'drop') {
       for (const lane of lanes) {
-        if (lane.status === 'running' && lane.project === e.project
+        if ((lane.status === 'running' || lane.status === 'interrupted') && lane.project === e.project
           && lane.delegateTask === e.task) {
           lane.status = 'closed'
           lane.closeTs = e.t
