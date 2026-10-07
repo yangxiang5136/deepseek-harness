@@ -100,6 +100,23 @@
   user-select: none;
 }
 
+.projects {
+  max-width: 180px;
+  height: var(--tf-ctl-h);
+  padding: 0 6px;
+  font: var(--tf-font-ctrl);
+  color: var(--tf-ink-2);
+  cursor: pointer;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  border: 1px solid var(--tf-line);
+  border-radius: var(--tf-radius);
+}
+
+.projects:focus-visible {
+  outline: 2px solid var(--tf-main);
+  outline-offset: 1px;
+}
+
 /* 无心跳 N beside the title: amber like the other things waiting on Sean; opens
    the title popover that lists the silent lanes. */
 .badge {

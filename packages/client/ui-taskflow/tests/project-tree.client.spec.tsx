@@ -13,7 +13,7 @@ import type { TaskFlowFace } from '../src/client/face.ts'
 import type { TaskflowLedgerState } from '../src/client/ledger.ts'
 import { buildModel, IDLE_PAUSE_MS, parseLedgerText } from '../src/client/fold.ts'
 import {
-  buildProjectTree, MAINLINE_PINS_KEY, readPins, TREE_WINDOW_MS, writePins,
+  buildProjectTree, listProjects, MAINLINE_PINS_KEY, readPins, TREE_WINDOW_MS, writePins,
 } from '../src/client/projectTree.ts'
 import { parseTodoItems, todosForProject, todoTitle } from '../src/client/todo.ts'
 import { PANEL_BRANCH_ROWS, PANEL_TODO_ROWS, ProjectPanel } from '../src/client/ProjectPanel.tsx'
@@ -141,6 +141,27 @@ describe('parked debts in the bar fold', () => {
     const model = buildModel(events, NOW)
     expect(model.parked.map(d => d.task)).toEqual(['方向'])
     expect(model.needsYou.map(d => d.task)).toEqual(['评审'])
+  })
+})
+
+describe('project access independent of open review debts', () => {
+  it('includes current work, older debts and parks, todo-only projects and saved picks', () => {
+    const events = parseLedgerText([
+      ev('start', 5, '正在做', { project: 'machine' }),
+      ev('start', 10, '别名', { project: 'MSC_AI' }),
+      debt(9 * 24 * 60, '旧审阅', 'review', { project: 'TaskFlow' }),
+      debt(9 * 24 * 60, '旧停放', 'park', { project: 'life-admin' }),
+      ev('done', 9 * 24 * 60, '已归档', { project: 'old-project' }),
+      ev('start', -30, '未来记录', { project: 'future-project' }),
+    ].join('\n'))
+    const files = [
+      { name: 'job.md', text: '- [ ] 投递' },
+      { name: 'DME.md', text: '- [x] 完成' },
+      { name: 'unmapped.md', text: '- [ ] 不映射' },
+    ]
+    expect(listProjects(events, buildModel(events, NOW), files, { 'quiet-project': '主线' }, NOW))
+      .toEqual(['ARK', 'TaskFlow', 'job', 'life-admin', 'machine', 'quiet-project'])
+    expect(listProjects([], buildModel([], NOW), [], {}, NOW)).toEqual([])
   })
 })
 
@@ -303,6 +324,32 @@ describe('project panel in the bar', () => {
     name: 'ARK.md',
     text: Array.from({ length: count }, (_, i) => `- [ ] 待办${i + 1}${i === 0 ? ' due:2026-09-28' : ''}`).join('\n'),
   }]
+
+  it('opens a project with current work and no review debts without expanding the tray', async () => {
+    renderBar([ev('start', 5, '正在做', { project: 'machine' })], vi.fn().mockResolvedValue([]))
+    const picker = screen.getByRole('combobox', { name: '项目' })
+    fireEvent.click(picker)
+    expect(screen.getByText('TaskFlow')).toBeTruthy()
+    fireEvent.change(picker, { target: { value: 'machine' } })
+    const panel = screen.getByRole('region', { name: 'machine 项目树' })
+    await within(panel).findByText('这个项目没有待办')
+    expect(within(panel).getByText('正在做')).toBeTruthy()
+    expect(within(panel).getByText('进行中')).toBeTruthy()
+    fireEvent.change(picker, { target: { value: '' } })
+    expect(screen.queryByRole('region', { name: 'machine 项目树' })).toBeNull()
+  })
+
+  it('makes a todo-only project reachable from the startup read and reports an initial failure', async () => {
+    const view = renderBar([], vi.fn().mockResolvedValue([{ name: 'job.md', text: '- [ ] 投递' }]))
+    await screen.findByRole('option', { name: 'job' })
+    fireEvent.change(screen.getByRole('combobox', { name: '项目' }), { target: { value: 'job' } })
+    const panel = screen.getByRole('region', { name: 'job 项目树' })
+    await within(panel).findByTitle('投递')
+    expect(within(panel).getByText('近 7 天没有活动')).toBeTruthy()
+    view.unmount()
+    renderBar([], vi.fn().mockRejectedValue(new Error('离线')))
+    await screen.findByText('待办读取失败：离线')
+  })
 
   it('opens from the tray project name, reads todos, pins a mainline and closes', async () => {
     const todos = vi.fn().mockResolvedValue(todoFile(PANEL_TODO_ROWS + 2))
@@ -482,7 +529,10 @@ describe('project panel in the bar', () => {
     let resolve: (files: TaskflowTodoFile[]) => void = () => {}
     let reject: (error: unknown) => void = () => {}
     const todos = vi.fn()
+      .mockResolvedValue([])
+      .mockResolvedValueOnce([])
       .mockReturnValueOnce(new Promise<TaskflowTodoFile[]>((r) => { resolve = r }))
+      .mockResolvedValueOnce([])
       .mockReturnValueOnce(new Promise<TaskflowTodoFile[]>((_, r) => { reject = r }))
     renderBar([debt(10, '欠账', 'review')], todos)
     const name = screen.getByRole('button', { name: 'ARK' })

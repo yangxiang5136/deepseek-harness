@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { TaskflowTodoFile } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls the ui-layout SlotMap merge (the shell.overlay list slot).
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import {
@@ -13,7 +14,7 @@ import { HistoryStrip } from './HistoryStrip.tsx'
 import { MiniBar } from './MiniBar.tsx'
 import { NeedsYouTray } from './NeedsYouTray.tsx'
 import { ProjectPanel, type TodoState } from './ProjectPanel.tsx'
-import { buildProjectTree, readPins, writePins } from './projectTree.ts'
+import { buildProjectTree, listProjects, readPins, writePins } from './projectTree.ts'
 import { todosForProject } from './todo.ts'
 import { useDeferredSeal } from './deferredSeal.ts'
 import { TitlePopover } from './TitlePopover.tsx'
@@ -54,10 +55,10 @@ function createMeasure(): TextMeasure {
 
 /**
  * The TaskFlow bottom bar (spec §6 v3.0 final form): a collapsed 30px mini
- * strip ⇄ the expanded surface of exactly three elements — solid time-history
- * strip, width-adaptive running chip row, and the title popover as the single
- * intake for debts / no-heartbeat lanes / overflow. Data arrives through the
- * polled ledger hook and refolds every 10 s and on a 30 s clock; a read error
+ * strip ⇄ the expanded time-history strip, running chip row, debt tray, and
+ * project selector. The title popover lists no-heartbeat lanes and overflow.
+ * Data arrives through the polled ledger hook and refolds every 10 s and on
+ * a 30 s clock; a read error
  * rides the header (and the mini label) instead of freezing silently.
  *
  * The bar publishes its live height as {@link CLEARANCE_VAR} on the shell
@@ -79,6 +80,7 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
   const [cardTask, setCardTask] = useState<string | null>(null)
   const [pins, setPins] = useState(readPins)
   const [todoState, setTodoState] = useState<TodoState>({ status: 'loading' })
+  const [todoFiles, setTodoFiles] = useState<TaskflowTodoFile[]>([])
 
   // The walking clock: minutes-scale labels advance between ledger refreshes.
   // REFRESH_MS-driven refolds arrive through the ledger hook itself.
@@ -146,20 +148,28 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
     () => splitChips(buildChips(model), leftW ?? CHIP_ROW_W, measure),
     [model, leftW, measure],
   )
-  // Opening a project reads the todo files once; a stale answer for a project
-  // that was closed or switched meanwhile is discarded.
+  // The startup read makes todo-only projects reachable. Project changes
+  // refresh that source; stale responses cannot replace a newer selection.
   useEffect(() => {
-    if (openProject === null) return
     let live = true
     setTodoState({ status: 'loading' })
     todos().then(
-      (files) => { if (live) setTodoState({ status: 'ready', items: todosForProject(files, openProject) }) },
+      (files) => {
+        if (live) {
+          setTodoFiles(files)
+          setTodoState({ status: 'ready', items: openProject === null ? [] : todosForProject(files, openProject) })
+        }
+      },
       (error: unknown) => {
         if (live) setTodoState({ status: 'error', message: error instanceof Error ? error.message : '读取失败' })
       },
     )
     return () => { live = false }
   }, [openProject, todos])
+  const projects = useMemo(
+    () => listProjects(ledger.events, model, todoFiles, pins, now),
+    [ledger.events, model, todoFiles, pins, now],
+  )
   const tree = useMemo(
     () => openProject === null ? null : buildProjectTree(ledger.events, model, openProject, pins[openProject], now),
     [openProject, ledger.events, model, pins, now],
@@ -207,6 +217,21 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
         >
           TaskFlow
         </span>
+        <select
+          className={css.projects}
+          aria-label="项目"
+          title="打开项目树"
+          value={openProject ?? ''}
+          onClick={(e) => { e.stopPropagation() }}
+          onChange={(e) => {
+            setOpenProject(e.target.value || null)
+            setCardTask(null)
+          }}
+        >
+          <option value="">项目</option>
+          {projects.map(project => <option key={project} value={project}>{project}</option>)}
+          {openProject !== null && !projects.includes(openProject) && <option value={openProject}>{openProject}</option>}
+        </select>
         {silent > 0 && (
           <button
             type="button"
@@ -222,6 +247,7 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
           </button>
         )}
         {ledger.error !== undefined && <span className={css.error}>{`账本读取失败：${ledger.error}`}</span>}
+        {tree === null && todoState.status === 'error' && <span className={css.error}>{`待办读取失败：${todoState.message}`}</span>}
         <span className={css.spacer} />
         <button
           type="button"
