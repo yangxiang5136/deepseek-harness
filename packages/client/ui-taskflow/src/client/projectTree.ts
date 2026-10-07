@@ -6,10 +6,40 @@
  * count toward the mainline-vs-branch ratio and one summary line.
  */
 
+import type { TaskflowTodoFile } from '@deepseek-ai/dsh-api-remotes/client'
 import { displayProject, IDLE_PAUSE_MS, LANE_IDLE_MS, PARK_KIND, type AttentionEvent, type FoldModel, type NeedsYouItem } from './fold.ts'
+import { parseTodoItems, TODO_FILE_PROJECTS } from './todo.ts'
 
 /** How far back the tree and its ratio look. */
 export const TREE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * Projects available to open independently of the needs-you tray.
+ * @param events - parsed ledger events; only the tree's current week contributes.
+ * @param model - folded open debts and parked branches, including older ones.
+ * @param files - the last successful todo-file read.
+ * @param pins - the human's saved mainline picks.
+ * @param nowMs - wall-clock instant.
+ * @returns Sorted display project names with aliases folded and duplicates removed.
+ */
+export function listProjects(
+  events: readonly AttentionEvent[],
+  model: FoldModel,
+  files: readonly TaskflowTodoFile[],
+  pins: Readonly<Record<string, string>>,
+  nowMs: number,
+): string[] {
+  const projects = new Set(Object.keys(pins).map(displayProject))
+  for (const event of events) {
+    if (event.t >= nowMs - TREE_WINDOW_MS && event.t <= nowMs) projects.add(displayProject(event.project))
+  }
+  for (const debt of [...model.needsYou, ...model.parked]) projects.add(displayProject(debt.project))
+  for (const file of files) {
+    const project = TODO_FILE_PROJECTS[file.name]
+    if (project !== undefined && parseTodoItems(file.text).length > 0) projects.add(project)
+  }
+  return [...projects].sort()
+}
 
 /**
  * Why a branch is still open: running (heard from inside the idle window),

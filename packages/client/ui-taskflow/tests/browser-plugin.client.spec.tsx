@@ -249,8 +249,7 @@ describe('TaskFlowBar surface', () => {
     fireEvent.click(screen.getByText(/移植 client/))
     // The title popover no longer lists debts: they live in the tray alone.
     expect(screen.queryByRole('button', { name: /^无心跳/ })).toBeNull()
-    // Nothing silent renders nothing — not even a stray count.
-    expect(screen.getByText('TaskFlow').parentElement?.textContent).toBe('TaskFlow▾')
+    expect(screen.getByRole('combobox', { name: '项目' })).toBeTruthy()
     fireEvent.click(screen.getByText('TaskFlow'))
     expect(screen.getByText('一切正常')).toBeTruthy()
     expect(screen.queryByText('待收口')).toBeNull()
@@ -308,8 +307,8 @@ describe('TaskFlowBar surface', () => {
     expect(screen.getByText('⚠ 账本读取失败')).toBeTruthy()
     fireEvent.click(screen.getByText('⚠ 账本读取失败'))
     expect(screen.getByText(/账本读取失败：boom/)).toBeTruthy()
-    // No events at all: the strip says so instead of rendering nothing.
-    expect(screen.getByText('今日暂无注意力事件')).toBeTruthy()
+    // No closed attention spans: the strip names its empty history.
+    expect(screen.getByText('今日暂无已结束的注意力时段')).toBeTruthy()
     expect(screen.getByText('无进行中任务')).toBeTruthy()
   })
 
@@ -317,7 +316,7 @@ describe('TaskFlowBar surface', () => {
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)
     const state = stateOf([])
     const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
-    const props = { useLedger, seal: vi.fn() } as unknown as TaskFlowBarProps
+    const props = { useLedger, seal: vi.fn(), todos: vi.fn().mockResolvedValue([]) } as unknown as TaskFlowBarProps
     const view = render(
       <div data-testid="frame">
         <div data-shell-overlay="">
@@ -390,7 +389,7 @@ describe('TaskFlowBar surface', () => {
     // observe-less immediate publish must still land on the frame.
     const state = stateOf([])
     const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
-    const props = { useLedger, seal: vi.fn() } as unknown as TaskFlowBarProps
+    const props = { useLedger, seal: vi.fn(), todos: vi.fn().mockResolvedValue([]) } as unknown as TaskFlowBarProps
     const view = render(
       <div data-testid="frame">
         <div data-shell-overlay="">

@@ -3,7 +3,8 @@
  * entry rendering the attention surface (spec §6 v3.0). Facts arrive through
  * the `taskflow` Remote namespace — the ledger observable polls `read()`
  * every {@link REFRESH_MS} and the popover's checkmark drives the audited
- * `seal()` gate; opening a project reads `todos()` for its tree. The fold
+ * `seal()` gate; startup and project changes read `todos()` for discovery
+ * and the open tree. The fold
  * itself is pure client code over the raw JSONL.
  */
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
