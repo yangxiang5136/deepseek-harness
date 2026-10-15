@@ -44,4 +44,20 @@ describe('review plans observable', () => {
     expect(source.getSnapshot().error).toContain('多个审阅计划')
     expect(source.getSnapshot().plans[0]?.revision).toBe(2)
   })
+
+  it('ignores a late failure after reset and presents non-Error transport failures without discarding good data', async () => {
+    let fail!: (reason: unknown) => void
+    const read = vi.fn<() => Promise<ReviewPlanFiles>>()
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject }))
+      .mockResolvedValueOnce(snapshot(JSON.stringify(plan(2))))
+      .mockRejectedValueOnce('connection lost')
+    const source = createReviewPlans(read)
+    source.refresh(); source.reset(); source.refresh(); await flush()
+    fail(new Error('old connection failed')); await flush()
+    expect(source.getSnapshot().plans[0]?.revision).toBe(2)
+    expect(source.getSnapshot().error).toBeUndefined()
+    source.refresh(); await flush()
+    expect(source.getSnapshot().error).toBe('审阅计划读取失败')
+    expect(source.getSnapshot().plans[0]?.revision).toBe(2)
+  })
 })

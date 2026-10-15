@@ -1,10 +1,12 @@
 import { useState, type KeyboardEvent, type ReactElement } from 'react'
 import { DebtCard } from './DebtCard.tsx'
 import { debtKey } from './deferredSeal.ts'
-import { estTextW, fmtDur, type AttentionEvent, type NeedsYouItem } from './fold.ts'
+import { displayProject, estTextW, fmtDur, type AttentionEvent, type NeedsYouItem } from './fold.ts'
 import { fmtAge } from './NeedsYouTray.tsx'
 import { TREE_WINDOW_MS, type ProjectTree, type TreeTask } from './projectTree.ts'
 import type { TaskflowTodoItem } from './todo.ts'
+import type { ReviewPlansState } from './reviewPlans.ts'
+import { ReviewPlan } from './ReviewOrderPanel.tsx'
 import { TF_TYPE, type TypeRole } from './typeScale.ts'
 import css from './ProjectPanel.module.css'
 
@@ -58,8 +60,12 @@ export interface ProjectPanelProps {
   cardTask: string | null
   /** Exact tray or plan selection; undefined retains task-tag selection. */
   selectedDebt?: NeedsYouItem | null
-  /** Project-specific ordering guidance. */
-  reviewPlan?: ReactElement
+  /** Validated plan metadata and read health, independent of ledger outcomes. */
+  reviewState: ReviewPlansState
+  /** Every open review debt, including multiple reviews sharing a task name. */
+  reviewDebts: readonly NeedsYouItem[]
+  /** Open one exact debt from the project review order. */
+  onOpenDebt: (debt: NeedsYouItem) => void
   onCard: (task: string | null) => void
   /** Queue a seal of an open debt with Sean's optional closing note. */
   onSeal: (debt: NeedsYouItem, note: string) => void
@@ -147,7 +153,7 @@ function edgeClass(task: TreeTask): string {
  * @returns The panel element.
  */
 export function ProjectPanel({
-  tree, events, now, todos, onPin, cardTask, selectedDebt, reviewPlan, onCard, onSeal, onClose,
+  tree, events, now, todos, onPin, cardTask, selectedDebt, reviewState, reviewDebts, onOpenDebt, onCard, onSeal, onClose,
 }: ProjectPanelProps): ReactElement {
   const [allRows, setAllRows] = useState(false)
   const [showSettled, setShowSettled] = useState(false)
@@ -162,6 +168,7 @@ export function ProjectPanel({
   const step = slots.length > TIGHT_SLOTS ? TIGHT_STEP : STEP
   const xAt = (t: number): number => LABEL_W + 16 + Math.max(0, slots.indexOf(Math.max(t, windowStart))) * step
   const nowX = LABEL_W + 16 + Math.max(1, slots.length) * step + 12
+  const hasReviewPlan = reviewState.plans.some(plan => displayProject(plan.project) === tree.label)
   const todoItems = todos.status === 'ready' ? todos.items : []
   const width = nowX + TAG_W + 24
   const height = ROW0_Y + Math.max(0, rows.length - 1) * ROW_H + TAG_H / 2 + 8
@@ -238,6 +245,10 @@ export function ProjectPanel({
         <button type="button" className={css.btn} onClick={onClose}>收起</button>
       </div>
 
+      {hasReviewPlan && <ReviewPlan
+        project={tree.label} state={reviewState} events={events} debts={reviewDebts} onOpenDebt={onOpenDebt}
+      />}
+
       <div className={css.graph}>
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${tree.label} 主线与未了结分支`}>
           <g className={css.row}>
@@ -310,7 +321,6 @@ export function ProjectPanel({
         </ul>
       )}
 
-      {reviewPlan}
       <div className={css.todos}>
         <span className={css.section}>接下来 · 待办</span>
         {todos.status === 'loading' && <span className={css.muted}>读取中…</span>}

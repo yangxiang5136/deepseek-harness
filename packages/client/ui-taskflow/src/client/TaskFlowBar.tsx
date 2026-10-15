@@ -17,7 +17,6 @@ import { ProjectPanel, type TodoState } from './ProjectPanel.tsx'
 import { buildProjectTree, listProjects, readPins, writePins } from './projectTree.ts'
 import { todosForProject } from './todo.ts'
 import { debtKey, useDeferredSeal } from './deferredSeal.ts'
-import { ReviewPlan } from './ReviewOrderPanel.tsx'
 import { TitlePopover } from './TitlePopover.tsx'
 import css from './TaskFlowBar.module.css'
 
@@ -307,9 +306,9 @@ export function TaskFlowBar({ useLedger, useReviewPlans, seal, todos }: TaskFlow
           }}
           cardTask={selectedDebt?.task ?? null}
           selectedDebt={selectedDebt}
-          reviewPlan={<ReviewPlan
-            project={tree.label} state={reviewPlans} events={ledger.events} debts={model.needsYou} onOpenDebt={openDebt}
-          />}
+          reviewState={reviewPlans}
+          reviewDebts={model.needsYou}
+          onOpenDebt={openDebt}
           onCard={(task) => {
             const debt = [tree.main, ...tree.branches].find(entry => entry?.task === task)?.debt
             setSelectedDebtKey(debt === undefined || debt === null ? null : debtKey(debt))

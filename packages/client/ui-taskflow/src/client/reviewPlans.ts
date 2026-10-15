@@ -50,7 +50,10 @@ export function createReviewPlans(read: () => Promise<ReviewPlanFiles>): ReviewP
         if (issued !== generation) return
         const plans = answer.files.map((file) => {
           try { return parseReviewPlan(JSON.parse(file.text) as unknown) }
-          catch (error: unknown) { throw new Error(`${file.name}: ${error instanceof Error ? error.message : '计划无效'}`) }
+          catch (error: unknown) {
+            // Native JSON.parse and the local strict parser throw Error instances.
+            throw new Error(`${file.name}: ${(error as Error).message}`)
+          }
         })
         if (new Set(plans.map(plan => displayProject(plan.project))).size !== plans.length) throw new Error('同一项目存在多个审阅计划')
         publish({ plans, read: true, observer: answer.observer })

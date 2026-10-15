@@ -36,6 +36,15 @@ describe('review plan validation and ordering', () => {
     ['invalid debt id', (v: ReturnType<typeof fixture>) => ({ ...v, items: [{ ...v.items[0], debtEventIds: ['bad-id'] }] })],
     ['invalid lane', (v: ReturnType<typeof fixture>) => ({ ...v, items: [{ ...v.items[0], lane: 'blocked' }] })],
     ['false freshness', (v: ReturnType<typeof fixture>) => ({ ...v, sources: [{ surface: 'codex', threadId: 'chat', latestMessageId: 'new', observedAt: new Date(NOW).toISOString(), status: 'fresh', sourceRef: 'chat' }] })],
+    ['empty title', (v: ReturnType<typeof fixture>) => ({ ...v, items: [{ ...v.items[0], title: ' ' }] })],
+    ['negative order', (v: ReturnType<typeof fixture>) => ({ ...v, items: [{ ...v.items[0], order: -1 }] })],
+    ['missing list', (v: ReturnType<typeof fixture>) => ({ ...v, items: null })],
+    ['wrong schema version', (v: ReturnType<typeof fixture>) => ({ ...v, schemaVersion: 2 })],
+    ['fractional revision', (v: ReturnType<typeof fixture>) => ({ ...v, revision: 1.5 })],
+    ['zero revision', (v: ReturnType<typeof fixture>) => ({ ...v, revision: 0 })],
+    ['invalid source state', (v: ReturnType<typeof fixture>) => ({ ...v, sources: [{ surface: 'codex', threadId: 'chat', latestMessageId: 'new', observedAt: new Date(NOW).toISOString(), status: 'done', sourceRef: 'chat' }] })],
+    ['fresh without time', (v: ReturnType<typeof fixture>) => ({ ...v, sources: [{ surface: 'codex', threadId: 'chat', latestMessageId: 'new', observedAt: new Date(NOW).toISOString(), status: 'fresh', reconciledMessageId: 'new', sourceRef: 'chat' }] })],
+    ['fresh retains pending message', (v: ReturnType<typeof fixture>) => ({ ...v, sources: [{ surface: 'codex', threadId: 'chat', latestMessageId: 'new', observedAt: new Date(NOW).toISOString(), status: 'fresh', reconciledMessageId: 'new', reconciledAt: new Date(NOW).toISOString(), pendingFromMessageId: 'new', sourceRef: 'chat' }] })],
   ])('rejects %s', (_label, change) => { expect(() => parseReviewPlan(change(fixture()))).toThrow() })
 
   it('keeps observation and reconciliation separate from plan save time', () => {
@@ -47,6 +56,13 @@ describe('review plan validation and ordering', () => {
     const pending = { surface: 'codex', threadId: 'chat', latestMessageId: 'newest', observedAt: new Date(NOW).toISOString(), status: 'pending', sourceRef: 'chat', pendingFromMessageId: 'first-new', pendingFromRef: 'chat:line-10', reconciledRef: 'chat:line-9' }
     expect(parseReviewPlan({ ...fixture(), sources: [pending] }).sources[0]?.pendingFromMessageId).toBe('first-new')
     expect(() => parseReviewPlan({ ...fixture(), sources: [{ ...pending, status: 'fresh', reconciledMessageId: 'newest', reconciledAt: new Date(NOW).toISOString() }] })).toThrow('待核对起点')
+  })
+
+  it('retains an optional chat and condition alongside a fully reconciled source', () => {
+    const source = { surface: 'claude-code', threadId: 'chat', latestMessageId: 'new', observedAt: new Date(NOW).toISOString(), status: 'fresh', reconciledMessageId: 'new', reconciledAt: new Date(NOW).toISOString(), reconciledRef: 'chat:line-10', sourceRef: 'chat' }
+    const plan = parseReviewPlan({ ...fixture(), items: [{ ...fixture().items[0], threadId: 'chat', condition: '选作首发演示时再看', lane: 'conditional', after: [] }], sources: [source] })
+    expect(plan.items[0]).toMatchObject({ threadId: 'chat', condition: '选作首发演示时再看', lane: 'conditional' })
+    expect(plan.sources[0]?.status).toBe('fresh')
   })
 })
 
@@ -63,5 +79,12 @@ describe('exact review outcomes', () => {
       expect(reviewDebtStatus(ID, events, buildModel(events, NOW).needsYou)).toBe(status)
     }
     expect(reviewDebtStatus('missing', [], [])).toBe('待核对记录')
+  })
+
+  it('keeps a parked branch out of audited review outcomes', () => {
+    const events = parseLedgerText(line('needs-you', { payload: { kind: 'park', ref: 'chat:branch' } }))
+    const model = buildModel(events, NOW)
+    expect(model.parked).toHaveLength(1)
+    expect(reviewDebtStatus(ID, events, model.needsYou)).toBe('待核对记录')
   })
 })

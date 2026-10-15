@@ -31,11 +31,13 @@ type PlanRowsProps = Omit<ReviewPlanProps, 'project' | 'state'> & { plan: Plan }
 function ReviewItem({ plan, item, events, debts, onOpenDebt }: PlanRowsProps & { item: ReviewPlanItem }): ReactElement {
   const [copied, setCopied] = useState<CopyState | null>(null)
   const override = plan.overrides.find(entry => entry.itemId === item.id)
+  const after = item.after
+  const titlesById = new Map(plan.items.map(entry => [entry.id, entry.title]))
   return (
     <li data-review-item={item.id} aria-label={`审阅事项 ${item.title}`} className={css.reviewItem}>
       <div className={css.name}>{item.title}<span className={css.reviewLane}>{LANES[item.lane]}</span></div>
       <div className={css.muted}>{override?.reason ?? item.reason}</div>
-      {(item.after?.length ?? 0) > 0 && <div className={css.muted}>{`建议先看：${item.after?.map(id => plan.items.find(entry => entry.id === id)?.title).join('、')}`}</div>}
+      {after !== undefined && after.length > 0 && <div className={css.muted}>{`建议先看：${after.map(id => titlesById.get(id)).join('、')}`}</div>}
       {item.condition !== undefined && <div className={css.muted}>{item.condition}</div>}
       <div className={css.reviewAction}>
         <button type="button" className={css.btn} onClick={() => { doCopy(item.ref, setCopied) }}>{copied === 'done' ? '已复制入口' : '复制审阅入口'}</button>

@@ -115,6 +115,8 @@ describe('web e2e: TaskFlow saved review plans', () => {
     await plan.getByRole('list', { name: '可并行审阅', exact: true }).waitFor()
     await plan.getByText('近期需要培训时提前', { exact: true }).waitFor()
     const initialSnapshot = await plan.ariaSnapshot()
+    const qaScreenshotPath = process.env.DSH_TASKFLOW_REVIEW_QA_SCREENSHOT
+    if (qaScreenshotPath !== undefined) await page.screenshot({ path: qaScreenshotPath, fullPage: true })
 
     const debtCard = page.getByRole('region', { name: `${SHARED_TASK} 详情` })
     await plan.getByRole('button', { name: `查看待审记录 核对用户与角色 ${DEBT_A}`, exact: true }).click()
