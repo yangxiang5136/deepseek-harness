@@ -23,8 +23,10 @@ import {
   readTodoFiles,
 } from './ledger.ts'
 import { formatSealLine, isNeedsYouOpenAt, parseLedger } from './seal.ts'
+import { readReviewPlanFiles, readReviewWatchStatus } from './review-plans.ts'
 import type {
   TaskflowLedgerSnapshot,
+  TaskflowReviewPlanSnapshot,
   TaskflowSealRequest,
   TaskflowSealResult,
   TaskflowTodoSnapshot,
@@ -75,6 +77,24 @@ export function todoDirectory(): string {
     ?? join(homedir(), 'my-memories', 'todo', 'projects')
 }
 
+/**
+ * Fixed project review-plan directory, overridable only by host environment.
+ * @returns Absolute directory used by the read-only review-plan Remote call.
+ */
+export function reviewPlansDirectory(): string {
+  return process.env.DSH_TASKFLOW_REVIEW_PLANS_DIR
+    ?? join(homedir(), 'my-memories', 'attention', 'project-plans')
+}
+
+/**
+ * Public watcher status path, separate from private source offsets and transcripts.
+ * @returns Absolute host-selected JSON status path.
+ */
+export function reviewWatchStatusPath(): string {
+  return process.env.DSH_TASKFLOW_REVIEW_WATCH_STATUS
+    ?? join(homedir(), 'my-memories', 'attention', 'review-watch-status.json')
+}
+
 async function readLedger(): Promise<TaskflowLedgerSnapshot> {
   const override = process.env.DSH_TASKFLOW_LEDGER
   return override === undefined
@@ -107,6 +127,17 @@ export class TaskflowLedgerGateway extends TypertRemoteService {
   @Remote('todos')
   async todos(): Promise<TaskflowTodoSnapshot> {
     return readTodoFiles(todoDirectory())
+  }
+
+  /**
+   * Read bounded JSON plan texts from the host-selected directory. The client
+   * validates review-order semantics; this method has no path argument or writes.
+   * @returns Raw plan texts; missing directory is explicit, other failures reject.
+   */
+  @Remote('reviewPlans')
+  async reviewPlans(): Promise<TaskflowReviewPlanSnapshot> {
+    const observer = await readReviewWatchStatus(reviewWatchStatusPath())
+    return readReviewPlanFiles(reviewPlansDirectory(), observer)
   }
 
   /**

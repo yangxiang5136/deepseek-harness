@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-07-taskflow-project-access.md
-2026-10-07-taskflow-project-access.md: 96246bc0eaa2fa45e35ac25e8e7f5aff25373501
-2026-10-07-taskflow-project-access.zh.md: d5b6a56c5743e92f2b71bb8a4f69fa06512ed85e
+2026-10-07-taskflow-project-access.md: 7a353f2d50457a023100c29f03721f5b43a19c2c
+2026-10-07-taskflow-project-access.zh.md: 4b2cf06c672ec5bd871cc5b9f062e1cb6761b003

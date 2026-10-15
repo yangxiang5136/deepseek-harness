@@ -473,3 +473,46 @@
   border: 1px solid var(--tf-line);
   border-radius: var(--tf-radius);
 }
+
+.reviewPlan {
+  margin-top: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--tf-line);
+}
+
+.reviewList {
+  display: grid;
+  gap: 10px;
+  padding-left: 24px;
+  margin: 8px 0;
+}
+
+.reviewItem {
+  min-width: 0;
+}
+
+.reviewLane {
+  margin-left: 8px;
+  font: var(--tf-font-hint);
+  color: var(--tf-ink-3);
+}
+
+.reviewRef {
+  font: var(--tf-font-hint);
+  color: var(--tf-ink-3);
+  overflow-wrap: anywhere;
+}
+
+.reviewAction {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.reviewSource {
+  margin-top: 4px;
+  font: var(--tf-font-meta);
+  color: var(--tf-ink-2);
+}

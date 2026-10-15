@@ -1,5 +1,6 @@
 import { useState, type KeyboardEvent, type ReactElement } from 'react'
 import { DebtCard } from './DebtCard.tsx'
+import { debtKey } from './deferredSeal.ts'
 import { estTextW, fmtDur, type AttentionEvent, type NeedsYouItem } from './fold.ts'
 import { fmtAge } from './NeedsYouTray.tsx'
 import { TREE_WINDOW_MS, type ProjectTree, type TreeTask } from './projectTree.ts'
@@ -55,6 +56,10 @@ export interface ProjectPanelProps {
   onPin: (task: string) => void
   /** Task whose debt card is open (owned by the bar so the tray can open it). */
   cardTask: string | null
+  /** Exact tray or plan selection; undefined retains task-tag selection. */
+  selectedDebt?: NeedsYouItem | null
+  /** Project-specific ordering guidance. */
+  reviewPlan?: ReactElement
   onCard: (task: string | null) => void
   /** Queue a seal of an open debt with Sean's optional closing note. */
   onSeal: (debt: NeedsYouItem, note: string) => void
@@ -142,7 +147,7 @@ function edgeClass(task: TreeTask): string {
  * @returns The panel element.
  */
 export function ProjectPanel({
-  tree, events, now, todos, onPin, cardTask, onCard, onSeal, onClose,
+  tree, events, now, todos, onPin, cardTask, selectedDebt, reviewPlan, onCard, onSeal, onClose,
 }: ProjectPanelProps): ReactElement {
   const [allRows, setAllRows] = useState(false)
   const [showSettled, setShowSettled] = useState(false)
@@ -167,7 +172,7 @@ export function ProjectPanel({
     ? { text: '近 7 天没动', cls: css.tagQuiet as string, textCls: css.tagText as string }
     : stateTag(tree.main, now)
   // The card follows the live fold: once Sean seals the debt it closes itself.
-  const cardDebt = [tree.main, ...tree.branches].find(t => t?.task === cardTask)?.debt ?? null
+  const cardDebt = selectedDebt === undefined ? [tree.main, ...tree.branches].find(t => t?.task === cardTask)?.debt ?? null : selectedDebt
   const toggleCard = (task: string): void => { onCard(cardTask === task ? null : task) }
 
   /** The hover-revealed 设为主线 chip at the end of a row's label. */
@@ -269,7 +274,7 @@ export function ProjectPanel({
         <DebtCard
           // One instance per debt: a typed note must never carry over to the
           // next card and be sealed as feedback on the wrong task.
-          key={`${cardDebt.project}\u0000${cardDebt.task}\u0000${cardDebt.ts}`}
+          key={debtKey(cardDebt)}
           debt={cardDebt}
           label={tree.label}
           events={events}
@@ -305,6 +310,7 @@ export function ProjectPanel({
         </ul>
       )}
 
+      {reviewPlan}
       <div className={css.todos}>
         <span className={css.section}>接下来 · 待办</span>
         {todos.status === 'loading' && <span className={css.muted}>读取中…</span>}

@@ -5,7 +5,7 @@ import type { TaskflowTodoFile } from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import {
   buildChips, buildModel, CHIP_ROW_W, displayProject, estTextW, MODEL_W, noHeartbeat, REFRESH_MS, splitChips,
-  type TextMeasure,
+  type TextMeasure, type NeedsYouItem,
 } from './fold.ts'
 import type { TaskFlowFace } from './face.ts'
 import type { ClickPop } from './interaction.ts'
@@ -16,7 +16,8 @@ import { NeedsYouTray } from './NeedsYouTray.tsx'
 import { ProjectPanel, type TodoState } from './ProjectPanel.tsx'
 import { buildProjectTree, listProjects, readPins, writePins } from './projectTree.ts'
 import { todosForProject } from './todo.ts'
-import { useDeferredSeal } from './deferredSeal.ts'
+import { debtKey, useDeferredSeal } from './deferredSeal.ts'
+import { ReviewPlan } from './ReviewOrderPanel.tsx'
 import { TitlePopover } from './TitlePopover.tsx'
 import css from './TaskFlowBar.module.css'
 
@@ -70,14 +71,15 @@ function createMeasure(): TextMeasure {
  * NeedsYouTray.module.css keys its tighter grid height cap on that attribute
  * because the banner's class name is hashed in this module.
  */
-export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): ReactElement {
+export function TaskFlowBar({ useLedger, useReviewPlans, seal, todos }: TaskFlowBarProps): ReactElement {
   const ledger = useLedger(s => s)
+  const reviewPlans = useReviewPlans(s => s)
   const [collapsed, setCollapsed] = useState(true)
   const [now, setNow] = useState(() => Date.now())
   const [clickPop, setClickPop] = useState<ClickPop | null>(null)
   const [titleOpen, setTitleOpen] = useState(false)
   const [openProject, setOpenProject] = useState<string | null>(null)
-  const [cardTask, setCardTask] = useState<string | null>(null)
+  const [selectedDebtKey, setSelectedDebtKey] = useState<string | null>(null)
   const [pins, setPins] = useState(readPins)
   const [todoState, setTodoState] = useState<TodoState>({ status: 'loading' })
   const [todoFiles, setTodoFiles] = useState<TaskflowTodoFile[]>([])
@@ -167,13 +169,24 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
     return () => { live = false }
   }, [openProject, todos])
   const projects = useMemo(
-    () => listProjects(ledger.events, model, todoFiles, pins, now),
-    [ledger.events, model, todoFiles, pins, now],
+    () => [...new Set([
+      ...listProjects(ledger.events, model, todoFiles, pins, now),
+      ...reviewPlans.plans.map(plan => displayProject(plan.project)),
+    ])].sort(),
+    [ledger.events, model, todoFiles, pins, now, reviewPlans.plans],
   )
   const tree = useMemo(
     () => openProject === null ? null : buildProjectTree(ledger.events, model, openProject, pins[openProject], now),
     [openProject, ledger.events, model, pins, now],
   )
+
+  const openDebt = (debt: NeedsYouItem): void => {
+    const project = displayProject(debt.project)
+    const key = debtKey(debt)
+    setOpenProject(project)
+    setSelectedDebtKey(openProject === project && selectedDebtKey === key ? null : key)
+  }
+  const selectedDebt = model.needsYou.concat(model.parked).find(debt => debtKey(debt) === selectedDebtKey) ?? null
 
   // Bar-owned so collapsing the tray or the whole bar never drops a seal
   // that is still inside its 撤销 window.
@@ -185,7 +198,7 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
         model={model}
         now={now}
         loading={!ledger.read}
-        error={ledger.error}
+        error={ledger.error ?? reviewPlans.error}
         onExpand={() => { setCollapsed(false) }}
         rootRef={rootRef}
       />
@@ -225,7 +238,7 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
           onClick={(e) => { e.stopPropagation() }}
           onChange={(e) => {
             setOpenProject(e.target.value || null)
-            setCardTask(null)
+            setSelectedDebtKey(null)
           }}
         >
           <option value="">项目</option>
@@ -247,6 +260,7 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
           </button>
         )}
         {ledger.error !== undefined && <span className={css.error}>{`账本读取失败：${ledger.error}`}</span>}
+        {reviewPlans.error !== undefined && <span className={css.error}>{`审阅计划读取失败：${reviewPlans.error}`}</span>}
         {tree === null && todoState.status === 'error' && <span className={css.error}>{`待办读取失败：${todoState.message}`}</span>}
         <span className={css.spacer} />
         <button
@@ -291,12 +305,19 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
             setPins(next)
             writePins(next)
           }}
-          cardTask={cardTask}
-          onCard={setCardTask}
+          cardTask={selectedDebt?.task ?? null}
+          selectedDebt={selectedDebt}
+          reviewPlan={<ReviewPlan
+            project={tree.label} state={reviewPlans} events={ledger.events} debts={model.needsYou} onOpenDebt={openDebt}
+          />}
+          onCard={(task) => {
+            const debt = [tree.main, ...tree.branches].find(entry => entry?.task === task)?.debt
+            setSelectedDebtKey(debt === undefined || debt === null ? null : debtKey(debt))
+          }}
           onSeal={(debt, note) => { sealer.queue(debt, note) }}
           onClose={() => {
             setOpenProject(null)
-            setCardTask(null)
+            setSelectedDebtKey(null)
           }}
         />
       )}
@@ -306,15 +327,11 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
         openProject={openProject}
         onToggleProject={(project) => {
           setOpenProject(openProject === project ? null : project)
-          setCardTask(null)
+          setSelectedDebtKey(null)
         }}
-        openTask={cardTask}
-        onOpenDebt={(debt) => {
-          const project = displayProject(debt.project)
-          const same = openProject === project && cardTask === debt.task
-          setOpenProject(project)
-          setCardTask(same ? null : debt.task)
-        }}
+        openTask={selectedDebt?.task ?? null}
+        openDebtKey={selectedDebtKey}
+        onOpenDebt={openDebt}
       />
     </div>
   )

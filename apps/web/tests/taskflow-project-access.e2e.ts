@@ -26,7 +26,10 @@ describe('web e2e: TaskFlow project access without a closure debt', () => {
     busRoot = await mkdtemp(join(tmpdir(), 'dsh-taskflow-project-access-'))
     const ledgerPath = join(busRoot, 'events.jsonl')
     const todoDir = join(busRoot, 'todo')
+    const reviewPlansDir = join(busRoot, 'review-plans')
+    const watchStatusPath = join(busRoot, 'review-watch-status.json')
     await mkdir(todoDir, { mode: 0o700 })
+    await mkdir(reviewPlansDir, { mode: 0o700 })
     await writeFile(ledgerPath, `${JSON.stringify({
       schema_version: 2,
       event_id: '123e4567-e89b-42d3-a456-426614174001',
@@ -38,9 +41,15 @@ describe('web e2e: TaskFlow project access without a closure debt', () => {
       payload: {},
     })}\n`, { mode: 0o600 })
     await writeFile(join(todoDir, 'job.md'), '- [ ] 准备申请材料\n', { mode: 0o600 })
+    await writeFile(watchStatusPath, JSON.stringify({
+      lastScanAt: new Date(NOW).toISOString(), lastErrorCount: 0,
+      coverage: ['Codex', 'Claude Code'], excluded: ['云聊天', 'Cowork'],
+    }), { mode: 0o600 })
     vi.stubEnv('DSH_TASKFLOW_LEDGER', ledgerPath)
     vi.stubEnv('DSH_TASKFLOW_ATTENTION_DIR', busRoot)
     vi.stubEnv('DSH_TASKFLOW_TODO_DIR', todoDir)
+    vi.stubEnv('DSH_TASKFLOW_REVIEW_PLANS_DIR', reviewPlansDir)
+    vi.stubEnv('DSH_TASKFLOW_REVIEW_WATCH_STATUS', watchStatusPath)
 
     // No replay fixture: the scaffold's route-only adapter refuses any model call.
     scaffold = await launchWebScaffold({})

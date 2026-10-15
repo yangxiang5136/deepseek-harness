@@ -16,6 +16,8 @@ import TaskflowLedgerGateway, {
   LEGACY_CLOSE_MS,
   parseLedger,
   SEAL_NOTE_MAX,
+  reviewPlansDirectory,
+  reviewWatchStatusPath,
   todoDirectory,
 } from '../src/index.ts'
 import {
@@ -32,6 +34,8 @@ afterEach(async () => {
   delete process.env.DSH_TASKFLOW_LEDGER
   delete process.env.DSH_TASKFLOW_ATTENTION_DIR
   delete process.env.DSH_TASKFLOW_TODO_DIR
+  delete process.env.DSH_TASKFLOW_REVIEW_PLANS_DIR
+  delete process.env.DSH_TASKFLOW_REVIEW_WATCH_STATUS
   vi.useRealTimers()
 })
 
@@ -652,6 +656,7 @@ describe('TaskflowLedgerGateway', () => {
     expect(remoteMethods(gateway)).toEqual([
       { method: 'read', invocation: { kind: 'direct' } },
       { method: 'todos', invocation: { kind: 'direct' } },
+      { method: 'reviewPlans', invocation: { kind: 'direct' } },
       { method: 'seal', invocation: { kind: 'direct' } },
     ])
   })
@@ -666,6 +671,22 @@ describe('TaskflowLedgerGateway', () => {
     })
     delete process.env.DSH_TASKFLOW_TODO_DIR
     expect(todoDirectory()).toBe(join(homedir(), 'my-memories', 'todo', 'projects'))
+  })
+
+  it('reads project review plans through a path-free remote', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'taskflow-review-remote-'))
+    const text = '{"project":"ARK","items":[]}\n'
+    await writeFile(join(dir, 'ARK.json'), text)
+    const { gateway } = await harness('')
+    process.env.DSH_TASKFLOW_REVIEW_PLANS_DIR = dir
+    process.env.DSH_TASKFLOW_REVIEW_WATCH_STATUS = join(dir, 'missing-status')
+    expect(await gateway.reviewPlans()).toEqual({
+      dir, exists: true, files: [{ name: 'ARK.json', text }], observer: null,
+    })
+    delete process.env.DSH_TASKFLOW_REVIEW_PLANS_DIR
+    expect(reviewPlansDirectory()).toBe(join(homedir(), 'my-memories', 'attention', 'project-plans'))
+    delete process.env.DSH_TASKFLOW_REVIEW_WATCH_STATUS
+    expect(reviewWatchStatusPath()).toBe(join(homedir(), 'my-memories', 'attention', 'review-watch-status.json'))
   })
 
   it('keeps the exact-file override controllable for tests', async () => {

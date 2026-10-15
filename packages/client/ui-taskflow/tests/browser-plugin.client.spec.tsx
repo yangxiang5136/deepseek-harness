@@ -21,6 +21,8 @@ import { HistoryStrip } from '../src/client/HistoryStrip.tsx'
 import { MiniBar } from '../src/client/MiniBar.tsx'
 import { TitlePopover } from '../src/client/TitlePopover.tsx'
 import type { TaskFlowFace } from '../src/client/face.ts'
+import type { ReviewPlansState } from '../src/client/reviewPlans.ts'
+const useReviewPlans = (select: (state: ReviewPlansState) => unknown) => select({ plans: [], read: true, observer: null })
 import type { ClickPop } from '../src/client/interaction.ts'
 import type { TaskflowLedgerState } from '../src/client/ledger.ts'
 import {
@@ -103,7 +105,7 @@ async function bench(overrides: {
       ok: true as const,
       value: { dir: '/bus/todo/projects', exists: true, files: [{ name: 'ARK.md', text: '- [ ] 地推' }] },
     })))
-  ctx.provide('remote.taskflow', { read, seal, todos })
+  ctx.provide('remote.taskflow', { read, seal, todos, reviewPlans: vi.fn().mockResolvedValue({ ok: true, value: { dir: '/bus/reviews', exists: true, observer: null, files: [] } }) })
   return { ctx, slots: ctx.get('slots') as SlotRegistry, read, seal, todos }
 }
 
@@ -197,7 +199,7 @@ describe('TaskFlowBar surface', () => {
   function renderBar(state: TaskflowLedgerState, seal: TaskFlowFace['seal']) {
     const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
     const todos = vi.fn().mockResolvedValue([])
-    const props = { useLedger, seal, todos } as unknown as TaskFlowBarProps
+    const props = { useLedger, useReviewPlans, seal, todos } as unknown as TaskFlowBarProps
     return render(<TaskFlowBar {...props} />)
   }
 
@@ -316,7 +318,7 @@ describe('TaskFlowBar surface', () => {
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)
     const state = stateOf([])
     const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
-    const props = { useLedger, seal: vi.fn(), todos: vi.fn().mockResolvedValue([]) } as unknown as TaskFlowBarProps
+    const props = { useLedger, useReviewPlans, seal: vi.fn(), todos: vi.fn().mockResolvedValue([]) } as unknown as TaskFlowBarProps
     const view = render(
       <div data-testid="frame">
         <div data-shell-overlay="">
@@ -389,7 +391,7 @@ describe('TaskFlowBar surface', () => {
     // observe-less immediate publish must still land on the frame.
     const state = stateOf([])
     const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
-    const props = { useLedger, seal: vi.fn(), todos: vi.fn().mockResolvedValue([]) } as unknown as TaskFlowBarProps
+    const props = { useLedger, useReviewPlans, seal: vi.fn(), todos: vi.fn().mockResolvedValue([]) } as unknown as TaskFlowBarProps
     const view = render(
       <div data-testid="frame">
         <div data-shell-overlay="">
