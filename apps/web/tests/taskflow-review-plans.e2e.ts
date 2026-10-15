@@ -95,7 +95,8 @@ describe('web e2e: TaskFlow saved review plans', () => {
     scaffold = await launchWebScaffold({})
     const channel = process.env.DSH_TEST_BROWSER_CHANNEL
     browser = await chromium.launch(channel === undefined ? {} : { channel })
-    page = await browser.newPage({ viewport: { width: 1680, height: 1200 }, locale: ZH_BROWSER_LOCALE, timezoneId: 'Asia/Shanghai' })
+    const context = await browser.newContext({ viewport: { width: 1680, height: 1200 }, locale: ZH_BROWSER_LOCALE, timezoneId: 'Asia/Shanghai' })
+    page = await context.newPage()
     await page.addInitScript((now) => { Date.now = () => now }, NOW)
     tripwire = watchConsole(page)
     await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
@@ -138,7 +139,33 @@ describe('web e2e: TaskFlow saved review plans', () => {
     const trayDebts = tray.getByRole('button', { name: SHARED_TASK, exact: true })
     await trayDebts.nth(0).click()
     await debtCard.getByText(ROLE_REF, { exact: true }).waitFor()
-    await debtCard.getByRole('button', { name: '关闭', exact: true }).click()
+    await page.reload({ waitUntil: 'load' })
+    await plan.getByRole('listitem', { name: `审阅聊天 ${CHAT_TITLES.roles}`, exact: true }).waitFor()
+    expect(await picker.inputValue()).toBe('ARK')
+    expect(await debtCard.count()).toBe(0)
+
+    const restoredPage = await page.context().newPage()
+    try {
+      await restoredPage.addInitScript((now) => { Date.now = () => now }, NOW)
+      const restoredTripwire = watchConsole(restoredPage)
+      await restoredPage.goto(page.url(), { waitUntil: 'load' })
+      await restoredPage.getByRole('region', { name: 'ARK 审阅顺序', exact: true })
+        .getByRole('listitem', { name: `审阅聊天 ${CHAT_TITLES.roles}`, exact: true }).waitFor()
+      expect(await restoredPage.getByRole('combobox', { name: '项目' }).inputValue()).toBe('ARK')
+      expect(await restoredPage.getByRole('region', { name: `${SHARED_TASK} 详情` }).count()).toBe(0)
+      expect(restoredTripwire.pageErrors).toEqual([])
+    } finally {
+      await restoredPage.close()
+    }
+
+    await page.getByRole('region', { name: 'ARK 项目树', exact: true }).getByRole('button', { name: '收起', exact: true }).click()
+    await page.reload({ waitUntil: 'load' })
+    await picker.waitFor({ state: 'visible' })
+    await trayDebts.nth(0).waitFor()
+    expect(await picker.inputValue()).toBe('')
+    expect(await plan.count()).toBe(0)
+    await picker.selectOption('ARK')
+    await plan.getByRole('listitem', { name: `审阅聊天 ${CHAT_TITLES.roles}`, exact: true }).waitFor()
     await trayDebts.nth(1).click()
     await debtCard.getByText(DOCUMENT_REF, { exact: true }).waitFor()
     await debtCard.getByRole('button', { name: '关闭', exact: true }).click()
@@ -186,6 +213,7 @@ describe('web e2e: TaskFlow saved review plans', () => {
     await compareOrRefreshGolden(GOLDEN, [
       'INITIAL', initialSnapshot,
       'CHAT-IDENTITY', 'same-thread-reading-steps=2', 'visible-chat-rows=5', 'duplicate-chat-name=1', 'plan-action-buttons=0', 'branch-percentages=0',
+      'VIEW-RESTORE', 'reload-keeps-project=ARK', 'reload-keeps-review-order=visible', 'same-origin-new-page-keeps-project=ARK', 'reload-restores-debt-card=false', 'explicit-project-close-survives-reload=true',
       'EXACT-OPEN-IN-TRAY', `roles=${ROLE_REF}`, `documents=${DOCUMENT_REF}`,
       'ORDINARY-DONE', 'open-review-debts=2',
       'UPDATED-IN-PLACE', updatedSnapshot,

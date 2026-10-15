@@ -33,7 +33,7 @@ function renderBar(lines: string[], seal: TaskFlowFace['seal']) {
   const todos = vi.fn().mockResolvedValue([])
   const props = { useLedger, useReviewPlans, seal, todos } as unknown as TaskFlowBarProps
   const view = render(<TaskFlowBar {...props} />)
-  fireEvent.click(screen.getByText('空闲'))
+  if (screen.queryByRole('combobox', { name: '项目' }) === null) fireEvent.click(screen.getByText('空闲'))
   return view
 }
 

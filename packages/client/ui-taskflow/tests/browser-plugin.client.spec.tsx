@@ -33,6 +33,7 @@ import { SEAL_UNDO_MS } from '../src/client/deferredSeal.ts'
 
 afterEach(() => {
   cleanup()
+  localStorage.clear()
   vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()

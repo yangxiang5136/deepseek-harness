@@ -16,6 +16,12 @@ visible-chat-rows=5
 duplicate-chat-name=1
 plan-action-buttons=0
 branch-percentages=0
+VIEW-RESTORE
+reload-keeps-project=ARK
+reload-keeps-review-order=visible
+same-origin-new-page-keeps-project=ARK
+reload-restores-debt-card=false
+explicit-project-close-survives-reload=true
 EXACT-OPEN-IN-TRAY
 roles=/private/ark/roles.md
 documents=/private/ark/documents.md

@@ -18,6 +18,7 @@ import { buildProjectTree, listProjects, readPins, writePins } from './projectTr
 import { todosForProject } from './todo.ts'
 import { debtKey, useDeferredSeal } from './deferredSeal.ts'
 import { TitlePopover } from './TitlePopover.tsx'
+import { readView, writeView, type TaskflowView } from './viewState.ts'
 import css from './TaskFlowBar.module.css'
 
 /** The CSS seam ui-layout's frame consumes for content avoidance (S4). */
@@ -73,15 +74,21 @@ function createMeasure(): TextMeasure {
 export function TaskFlowBar({ useLedger, useReviewPlans, seal, todos }: TaskFlowBarProps): ReactElement {
   const ledger = useLedger(s => s)
   const reviewPlans = useReviewPlans(s => s)
-  const [collapsed, setCollapsed] = useState(true)
+  const [view, setView] = useState(readView)
+  const { collapsed, openProject } = view
   const [now, setNow] = useState(() => Date.now())
   const [clickPop, setClickPop] = useState<ClickPop | null>(null)
   const [titleOpen, setTitleOpen] = useState(false)
-  const [openProject, setOpenProject] = useState<string | null>(null)
   const [selectedDebtKey, setSelectedDebtKey] = useState<string | null>(null)
   const [pins, setPins] = useState(readPins)
   const [todoState, setTodoState] = useState<TodoState>({ status: 'loading' })
   const [todoFiles, setTodoFiles] = useState<TaskflowTodoFile[]>([])
+
+  const updateView = (change: Partial<TaskflowView>): void => {
+    const next = { ...view, ...change }
+    setView(next)
+    writeView(next)
+  }
 
   // The walking clock: minutes-scale labels advance between ledger refreshes.
   // REFRESH_MS-driven refolds arrive through the ledger hook itself.
@@ -182,7 +189,7 @@ export function TaskFlowBar({ useLedger, useReviewPlans, seal, todos }: TaskFlow
   const openDebt = (debt: NeedsYouItem): void => {
     const project = displayProject(debt.project)
     const key = debtKey(debt)
-    setOpenProject(project)
+    updateView({ openProject: project })
     setSelectedDebtKey(openProject === project && selectedDebtKey === key ? null : key)
   }
   const selectedDebt = model.needsYou.concat(model.parked).find(debt => debtKey(debt) === selectedDebtKey) ?? null
@@ -198,7 +205,7 @@ export function TaskFlowBar({ useLedger, useReviewPlans, seal, todos }: TaskFlow
         now={now}
         loading={!ledger.read}
         error={ledger.error ?? reviewPlans.error}
-        onExpand={() => { setCollapsed(false) }}
+        onExpand={() => { updateView({ collapsed: false }) }}
         rootRef={rootRef}
       />
     )
@@ -213,7 +220,7 @@ export function TaskFlowBar({ useLedger, useReviewPlans, seal, todos }: TaskFlow
     setTitleOpen(false)
   }
   const collapse = (): void => {
-    setCollapsed(true)
+    updateView({ collapsed: true })
     closeAll()
   }
 
@@ -236,7 +243,7 @@ export function TaskFlowBar({ useLedger, useReviewPlans, seal, todos }: TaskFlow
           value={openProject ?? ''}
           onClick={(e) => { e.stopPropagation() }}
           onChange={(e) => {
-            setOpenProject(e.target.value || null)
+            updateView({ openProject: e.target.value || null })
             setSelectedDebtKey(null)
           }}
         >
@@ -314,7 +321,7 @@ export function TaskFlowBar({ useLedger, useReviewPlans, seal, todos }: TaskFlow
           }}
           onSeal={(debt, note) => { sealer.queue(debt, note) }}
           onClose={() => {
-            setOpenProject(null)
+            updateView({ openProject: null })
             setSelectedDebtKey(null)
           }}
         />
@@ -324,7 +331,7 @@ export function TaskFlowBar({ useLedger, useReviewPlans, seal, todos }: TaskFlow
         sealer={sealer}
         openProject={openProject}
         onToggleProject={(project) => {
-          setOpenProject(openProject === project ? null : project)
+          updateView({ openProject: openProject === project ? null : project })
           setSelectedDebtKey(null)
         }}
         openTask={selectedDebt?.task ?? null}
