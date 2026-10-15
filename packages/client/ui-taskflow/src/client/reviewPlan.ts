@@ -1,7 +1,7 @@
 import type { AttentionEvent, NeedsYouItem } from './fold.ts'
-import type { ReviewPlan, ReviewPlanItem, ReviewPlanOverride, ReviewPlanSource } from './reviewPlanTypes.ts'
+import type { ReviewPlan, ReviewPlanItem, ReviewPlanOverride, ReviewPlanSource, ReviewChat } from './reviewPlanTypes.ts'
 
-export type { ReviewPlan, ReviewPlanItem, ReviewPlanOverride, ReviewPlanSource } from './reviewPlanTypes.ts'
+export type { ReviewPlan, ReviewPlanItem, ReviewPlanOverride, ReviewPlanSource, ReviewChat } from './reviewPlanTypes.ts'
 
 type RecordValue = Record<string, unknown>
 
@@ -38,15 +38,17 @@ function unique(values: readonly string[], label: string): void {
 }
 
 function item(value: unknown): ReviewPlanItem {
-  const row = object(value, ['id', 'title', 'ref', 'threadId', 'order', 'lane', 'reason', 'after', 'debtEventIds', 'condition'])
+  const row = object(value, ['id', 'title', 'ref', 'threadId', 'chatTitle', 'order', 'lane', 'reason', 'after', 'debtEventIds', 'condition'])
   if (row.lane !== 'main' && row.lane !== 'parallel' && row.lane !== 'conditional') throw new Error('审阅计划lane无效')
   const result: ReviewPlanItem = {
     id: text(row.id), title: text(row.title), ref: text(row.ref), order: number(row.order),
     lane: row.lane, reason: text(row.reason), debtEventIds: array(row.debtEventIds, text),
     ...(row.threadId === undefined ? {} : { threadId: text(row.threadId) }),
+    ...(row.chatTitle === undefined ? {} : { chatTitle: text(row.chatTitle) }),
     ...(row.condition === undefined ? {} : { condition: text(row.condition) }),
     ...(row.after === undefined ? {} : { after: array(row.after, text) }),
   }
+  if (result.chatTitle !== undefined && result.chatTitle.length > 4096) throw new Error('聊天名称不能超过4096个字符')
   if (result.debtEventIds.some(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))) {
     throw new Error('审阅计划债务ID必须为规范UUID')
   }
@@ -124,6 +126,35 @@ export function parseReviewPlan(value: unknown): ReviewPlan {
 export function orderedReviewItems(plan: ReviewPlan): ReviewPlanItem[] {
   const overrides = new Map(plan.overrides.map(entry => [entry.itemId, entry.order]))
   return [...plan.items].sort((a, b) => (overrides.get(a.id) ?? a.order) - (overrides.get(b.id) ?? b.order))
+}
+
+/**
+ * Combine planned steps by chat identity, retaining human ordering overrides and every debt reference.
+ * @param plan - Validated project plan.
+ * @returns One row per chat, or one row per item without a chat identity.
+ */
+export function reviewChats(plan: ReviewPlan): ReviewChat[] {
+  const grouped = new Map<string, ReviewPlanItem[]>()
+  for (const entry of plan.items) {
+    const key = entry.threadId === undefined ? `item:${entry.id}` : `thread:${entry.threadId}`
+    const current = grouped.get(key)
+    if (current === undefined) grouped.set(key, [entry])
+    else current.push(entry)
+  }
+  return [...grouped.entries()].map(([key, items]) => {
+    const first = items[0] as ReviewPlanItem
+    const ids = new Set(items.map(entry => entry.id))
+    const overrides = plan.overrides.filter(entry => ids.has(entry.itemId))
+    const title = first.threadId === undefined ? first.title
+      : items.find(entry => entry.chatTitle !== undefined)?.chatTitle ?? `聊天名称待同步（${first.threadId}）`
+    const lane: ReviewPlanItem['lane'] = items.some(entry => entry.lane === 'main') ? 'main'
+      : items.some(entry => entry.lane === 'conditional') ? 'conditional' : 'parallel'
+    return {
+      key, title, ...(first.threadId === undefined ? {} : { threadId: first.threadId }), lane,
+      order: Math.min(...(overrides.length > 0 ? overrides.map(entry => entry.order) : items.map(entry => entry.order))),
+      itemIds: items.map(entry => entry.id), debtEventIds: [...new Set(items.flatMap(entry => entry.debtEventIds))],
+    }
+  }).sort((a, b) => a.order - b.order)
 }
 
 /**

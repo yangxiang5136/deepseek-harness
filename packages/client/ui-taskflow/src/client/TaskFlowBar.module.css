@@ -14,7 +14,7 @@
  * two of size, weight and ink. TypeScript mirror: typeScale.ts TF_TYPE (the
  * lock test in fold.client.spec.ts keeps both sides equal).
  *   lead  15/20 600 — the one answer per surface (current task, 待你收口,
- *                     the lean verdict, the mainline, a card's status)
+ *                     the mainline, a card's status)
  *   item  13/18 500 — names of things (debt titles, chips, branches)
  *   meta  12/18 400 — supporting data (durations, badges, card facts)
  *   ctrl  12/16 500 — verbs and chrome labels (buttons, section labels)

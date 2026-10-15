@@ -1,16 +1,15 @@
 /**
  * Project tree (Branch Compass inside TaskFlow, Sean 2026-09-24): one
  * project's last week folded into a mainline and its unresolved side
- * branches, so a glance says whether the week went to the mainline or leaked
- * into branches. Settled branches (done / drop) are not drawn — they only
- * count toward the mainline-vs-branch ratio and one summary line.
+ * branches. Settled branches (done / drop) are not drawn; they remain
+ * available in one summary line.
  */
 
 import type { TaskflowTodoFile } from '@deepseek-ai/dsh-api-remotes/client'
 import { displayProject, IDLE_PAUSE_MS, LANE_IDLE_MS, PARK_KIND, type AttentionEvent, type FoldModel, type NeedsYouItem } from './fold.ts'
 import { parseTodoItems, TODO_FILE_PROJECTS } from './todo.ts'
 
-/** How far back the tree and its ratio look. */
+/** How far back the tree looks. */
 export const TREE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 /**

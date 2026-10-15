@@ -1,114 +1,55 @@
 INITIAL
 - region "ARK 审阅顺序":
-  - text: 建议审阅顺序 本机 Codex / Claude Code · 3秒检查 云聊天 / Cowork 未接入
+  - text: 建议审阅顺序
   - list "建议顺序":
-    - listitem "审阅事项 核对用户与角色":
-      - text: 核对用户与角色主线 先明确本轮角色
-      - button "复制审阅入口"
-      - text: 待审阅
-      - button "查看待审记录 核对用户与角色 123e4567-e89b-42d3-a456-426614175001": 查看待审记录
-      - group: 查看依据与入口
-    - listitem "审阅事项 体验任务与复用":
-      - text: 体验任务与复用主线 检查一条完整任务
-      - button "复制审阅入口"
-      - text: 尚未关联待审记录
-      - group: 查看依据与入口
-    - listitem "审阅事项 审阅MRD与PRD":
-      - text: 审阅MRD与PRD主线 再核对全文表达 建议先看：核对用户与角色
-      - button "复制审阅入口"
-      - text: 待审阅
-      - button "查看待审记录 审阅MRD与PRD 123e4567-e89b-42d3-a456-426614175002": 查看待审记录
-      - group: 查看依据与入口
-    - listitem "审阅事项 检查线下教学":
-      - text: 检查线下教学按需 按培训时间安排 近期需要培训时提前
-      - button "复制审阅入口"
-      - text: 尚未关联待审记录
-      - group: 查看依据与入口
+    - listitem "审阅聊天 ARK / 小程序架构 / 用户与角色 · v3": ARK / 小程序架构 / 用户与角色 · v3待审阅
+    - listitem "审阅聊天 ARK / 小程序架构 / 任务与复用 · v2": ARK / 小程序架构 / 任务与复用 · v2
+    - listitem "审阅聊天 ARK / 产品文档 / MRD与PRD · v4": ARK / 产品文档 / MRD与PRD · v4待审阅
+    - listitem "审阅聊天 ARK / 线下教学 / 培训安排 · v1": ARK / 线下教学 / 培训安排 · v1
   - text: 可并行
   - list "可并行审阅":
-    - listitem "审阅事项 核对渠道预算":
-      - text: 核对渠道预算可并行 可以并行核对成本
-      - button "复制审阅入口"
-      - text: 尚未关联待审记录
-      - group: 查看依据与入口
+    - listitem "审阅聊天 ARK / 渠道验证 / 预算与成本 · v2": ARK / 渠道验证 / 预算与成本 · v2
   - group: 信息来源 · 查看核对范围
-EXACT-OPEN
+CHAT-IDENTITY
+same-thread-reading-steps=2
+visible-chat-rows=5
+duplicate-chat-name=1
+plan-action-buttons=0
+branch-percentages=0
+EXACT-OPEN-IN-TRAY
 roles=/private/ark/roles.md
 documents=/private/ark/documents.md
 ORDINARY-DONE
 open-review-debts=2
 UPDATED-IN-PLACE
 - region "ARK 审阅顺序":
-  - text: 建议审阅顺序 本机 Codex / Claude Code · 3秒检查 云聊天 / Cowork 未接入
+  - text: 建议审阅顺序
   - list "建议顺序":
-    - listitem "审阅事项 体验任务与第二次复用":
-      - text: 体验任务与第二次复用主线 本轮先看Demo
-      - button "复制审阅入口"
-      - text: 尚未关联待审记录
-      - group: 查看依据与入口
-    - listitem "审阅事项 核对用户与角色":
-      - text: 核对用户与角色主线 先明确本轮角色
-      - button "复制审阅入口"
-      - text: 待审阅
-      - button "查看待审记录 核对用户与角色 123e4567-e89b-42d3-a456-426614175001": 查看待审记录
-      - group: 查看依据与入口
-    - listitem "审阅事项 审阅MRD与PRD":
-      - text: 审阅MRD与PRD主线 再核对全文表达 建议先看：核对用户与角色
-      - button "复制审阅入口"
-      - text: 待审阅
-      - button "查看待审记录 审阅MRD与PRD 123e4567-e89b-42d3-a456-426614175002": 查看待审记录
-      - group: 查看依据与入口
-    - listitem "审阅事项 检查线下教学":
-      - text: 检查线下教学按需 按培训时间安排 近期需要培训时提前
-      - button "复制审阅入口"
-      - text: 尚未关联待审记录
-      - group: 查看依据与入口
+    - listitem "审阅聊天 ARK / 小程序架构 / 任务与复用 · v3": ARK / 小程序架构 / 任务与复用 · v3
+    - listitem "审阅聊天 ARK / 小程序架构 / 用户与角色 · v3": ARK / 小程序架构 / 用户与角色 · v3待审阅
+    - listitem "审阅聊天 ARK / 产品文档 / MRD与PRD · v4": ARK / 产品文档 / MRD与PRD · v4待审阅
+    - listitem "审阅聊天 ARK / 线下教学 / 培训安排 · v1": ARK / 线下教学 / 培训安排 · v1
   - text: 可并行
   - list "可并行审阅":
-    - listitem "审阅事项 核对渠道预算":
-      - text: 核对渠道预算可并行 可以并行核对成本
-      - button "复制审阅入口"
-      - text: 尚未关联待审记录
-      - group: 查看依据与入口
+    - listitem "审阅聊天 ARK / 渠道验证 / 预算与成本 · v2": ARK / 渠道验证 / 预算与成本 · v2
   - group:
-    - text: 信息来源 · 有新信息待核对 第 2 版 · 保存于 2026-10-07T04:00:00.000Z 依据：/private/ark/review-order.md#review
+    - text: 信息来源 · 有新信息待核对 本机 Codex / Claude Code · 3秒检查 云聊天 / Cowork 未接入 第 2 版 · 保存于 2026-10-07T04:00:00.000Z 依据：/private/ark/review-order.md#review
     - group: Codex · 有新信息待核对
 EXACT-SEAL
 resolved=123e4567-e89b-42d3-a456-426614175001
 - region "ARK 审阅顺序":
-  - text: 建议审阅顺序 本机 Codex / Claude Code · 3秒检查 云聊天 / Cowork 未接入
+  - text: 建议审阅顺序
   - list "建议顺序":
-    - listitem "审阅事项 体验任务与第二次复用":
-      - text: 体验任务与第二次复用主线 本轮先看Demo
-      - button "复制审阅入口"
-      - text: 尚未关联待审记录
-      - group: 查看依据与入口
-    - listitem "审阅事项 核对用户与角色":
-      - text: 核对用户与角色主线 先明确本轮角色
-      - button "复制审阅入口"
-      - text: 相关待审已收口
-      - group: 查看依据与入口
-    - listitem "审阅事项 审阅MRD与PRD":
-      - text: 审阅MRD与PRD主线 再核对全文表达 建议先看：核对用户与角色
-      - button "复制审阅入口"
-      - text: 待审阅
-      - button "查看待审记录 审阅MRD与PRD 123e4567-e89b-42d3-a456-426614175002": 查看待审记录
-      - group: 查看依据与入口
-    - listitem "审阅事项 检查线下教学":
-      - text: 检查线下教学按需 按培训时间安排 近期需要培训时提前
-      - button "复制审阅入口"
-      - text: 尚未关联待审记录
-      - group: 查看依据与入口
+    - listitem "审阅聊天 ARK / 小程序架构 / 任务与复用 · v3": ARK / 小程序架构 / 任务与复用 · v3
+    - listitem "审阅聊天 ARK / 小程序架构 / 用户与角色 · v3": ARK / 小程序架构 / 用户与角色 · v3相关待审已收口
+    - listitem "审阅聊天 ARK / 产品文档 / MRD与PRD · v4": ARK / 产品文档 / MRD与PRD · v4待审阅
+    - listitem "审阅聊天 ARK / 线下教学 / 培训安排 · v1": ARK / 线下教学 / 培训安排 · v1
   - text: 可并行
   - list "可并行审阅":
-    - listitem "审阅事项 核对渠道预算":
-      - text: 核对渠道预算可并行 可以并行核对成本
-      - button "复制审阅入口"
-      - text: 尚未关联待审记录
-      - group: 查看依据与入口
+    - listitem "审阅聊天 ARK / 渠道验证 / 预算与成本 · v2": ARK / 渠道验证 / 预算与成本 · v2
   - group:
-    - text: 信息来源 · 有新信息待核对 第 2 版 · 保存于 2026-10-07T04:00:00.000Z 依据：/private/ark/review-order.md#review
+    - text: 信息来源 · 有新信息待核对 本机 Codex / Claude Code · 3秒检查 云聊天 / Cowork 未接入 第 2 版 · 保存于 2026-10-07T04:00:00.000Z 依据：/private/ark/review-order.md#review
     - group: Codex · 有新信息待核对
 INVALID-PLAN
-last-valid-order=demo,roles,documents,offline,channel
+last-valid-chat-order=ark-demo,ark-roles,ark-documents,ark-offline,ark-channel
 read-error=visible

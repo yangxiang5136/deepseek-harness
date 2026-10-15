@@ -294,7 +294,7 @@ describe('project panel on its own', () => {
     const onPin = vi.fn()
     const empty = treeOf([])
     const { unmount } = render(
-      <ProjectPanel reviewState={{ plans: [], read: true, observer: null }} reviewDebts={[]} onOpenDebt={vi.fn()} tree={empty} events={[]} now={NOW} todos={{ status: 'ready', items: [] }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />,
+      <ProjectPanel reviewState={{ plans: [], read: true, observer: null }} reviewDebts={[]} tree={empty} events={[]} now={NOW} todos={{ status: 'ready', items: [] }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />,
     )
     expect(screen.queryByRole('button', { name: /设为主线/ })).toBeNull()
     expect(screen.getByText('还没有任务')).toBeTruthy()
@@ -304,7 +304,7 @@ describe('project panel on its own', () => {
       ev('start', 30, '主线'), ev('start', 20, '放掉的'), ev('drop', 10, '放掉的'),
       debt(5, '一个名字特别特别长以至于要被截断的分支任务', 'review'),
     ], '主线')
-    render(<ProjectPanel reviewState={{ plans: [], read: true, observer: null }} reviewDebts={[]} onOpenDebt={vi.fn()} tree={tree} events={[]} now={NOW} todos={{ status: 'loading' }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />)
+    render(<ProjectPanel reviewState={{ plans: [], read: true, observer: null }} reviewDebts={[]} tree={tree} events={[]} now={NOW} todos={{ status: 'loading' }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />)
     fireEvent.click(screen.getByText(/已了结 1 条（完成 0）/))
     expect(screen.getByText(/✕ 放掉的/)).toBeTruthy()
     expect(screen.getByText(/^一个名字特别.*…$/)).toBeTruthy()
@@ -374,7 +374,8 @@ describe('project panel in the bar', () => {
     expect(within(panel).getByText('还有 2 条')).toBeTruthy()
     // Unpinned, the most active task stands in as the mainline.
     expect(within(panel).getByText('主线 · 推测，悬停可改')).toBeTruthy()
-    expect(within(panel).getByText('主线占 57%')).toBeTruthy()
+    expect(within(panel).queryByText(/主线占|分支占|重心偏/)).toBeNull()
+    expect(within(panel).queryByRole('img', { name: /近 7 天 主线.*分支/ })).toBeNull()
     expect(within(panel).getByText('等你合并')).toBeTruthy()
     expect(within(panel).getByText('等你收口')).toBeTruthy()
 
@@ -391,7 +392,7 @@ describe('project panel in the bar', () => {
     const settledRow = within(panel).getByText(/✓ 主线/)
     fireEvent.click(within(settledRow).getByText('设为主线'))
     expect(readPins()).toEqual({ ARK: '主线' })
-    expect(within(panel).getByText('分支占 57%，重心偏到分支了')).toBeTruthy()
+    expect(within(panel).queryByText(/主线占|分支占|重心偏/)).toBeNull()
     expect(within(panel).getByText('已完成')).toBeTruthy()
 
     // A branch row's chip pins by mouse; the waiting mainline tag opens its card.

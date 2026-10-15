@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseReviewPlan, orderedReviewItems, reviewDebtStatus } from '../src/client/reviewPlan.ts'
+import { parseReviewPlan, orderedReviewItems, reviewChats, reviewDebtStatus } from '../src/client/reviewPlan.ts'
 import { buildModel, parseLedgerText } from '../src/client/fold.ts'
 
 const ID = '123e4567-e89b-42d3-a456-426614174001'
@@ -22,6 +22,7 @@ function line(event: string, extra: Record<string, unknown> = {}) {
 describe('review plan validation and ordering', () => {
   it('honors overrides without turning advisory predecessors into blocking gates', () => {
     const raw = fixture()
+    expect(orderedReviewItems(parseReviewPlan(raw)).map(item => item.id)).toEqual(['roles', 'demo'])
     const plan = parseReviewPlan({ ...raw, overrides: [{ itemId: 'demo', order: 0, ref: 'human:message', reason: '先看整体效果' }] })
     expect(orderedReviewItems(plan).map(item => item.id)).toEqual(['demo', 'roles'])
   })
@@ -37,6 +38,8 @@ describe('review plan validation and ordering', () => {
     ['invalid lane', (v: ReturnType<typeof fixture>) => ({ ...v, items: [{ ...v.items[0], lane: 'blocked' }] })],
     ['false freshness', (v: ReturnType<typeof fixture>) => ({ ...v, sources: [{ surface: 'codex', threadId: 'chat', latestMessageId: 'new', observedAt: new Date(NOW).toISOString(), status: 'fresh', sourceRef: 'chat' }] })],
     ['empty title', (v: ReturnType<typeof fixture>) => ({ ...v, items: [{ ...v.items[0], title: ' ' }] })],
+    ['empty chat title', (v: ReturnType<typeof fixture>) => ({ ...v, items: [{ ...v.items[0], chatTitle: ' ' }] })],
+    ['oversize chat title', (v: ReturnType<typeof fixture>) => ({ ...v, items: [{ ...v.items[0], chatTitle: 'a'.repeat(4097) }] })],
     ['negative order', (v: ReturnType<typeof fixture>) => ({ ...v, items: [{ ...v.items[0], order: -1 }] })],
     ['missing list', (v: ReturnType<typeof fixture>) => ({ ...v, items: null })],
     ['wrong schema version', (v: ReturnType<typeof fixture>) => ({ ...v, schemaVersion: 2 })],
@@ -60,9 +63,41 @@ describe('review plan validation and ordering', () => {
 
   it('retains an optional chat and condition alongside a fully reconciled source', () => {
     const source = { surface: 'claude-code', threadId: 'chat', latestMessageId: 'new', observedAt: new Date(NOW).toISOString(), status: 'fresh', reconciledMessageId: 'new', reconciledAt: new Date(NOW).toISOString(), reconciledRef: 'chat:line-10', sourceRef: 'chat' }
-    const plan = parseReviewPlan({ ...fixture(), items: [{ ...fixture().items[0], threadId: 'chat', condition: '选作首发演示时再看', lane: 'conditional', after: [] }], sources: [source] })
-    expect(plan.items[0]).toMatchObject({ threadId: 'chat', condition: '选作首发演示时再看', lane: 'conditional' })
+    const chatTitle = 'ARK / 产品 / 用户与角色 · v1'
+    const plan = parseReviewPlan({ ...fixture(), items: [{ ...fixture().items[0], threadId: 'chat', chatTitle, condition: '选作首发演示时再看', lane: 'conditional', after: [] }], sources: [source] })
+    expect(plan.items[0]).toMatchObject({ threadId: 'chat', chatTitle, condition: '选作首发演示时再看', lane: 'conditional' })
     expect(plan.sources[0]?.status).toBe('fresh')
+  })
+
+  it('combines chat steps without losing debt references and gives human rank precedence over earlier base steps', () => {
+    const raw = fixture()
+    const secondDebt = '123e4567-e89b-42d3-a456-426614174002'
+    const plan = parseReviewPlan({ ...raw, items: [
+      { ...raw.items[0], threadId: 'roles', chatTitle: 'ARK / 产品 / 用户与角色 · v1' },
+      { ...raw.items[1], threadId: 'demo', chatTitle: 'ARK / 架构 / 任务演示 · v1' },
+      { ...raw.items[0], id: 'full', title: '全文核对', threadId: 'roles', order: 4, lane: 'conditional', debtEventIds: [ID, secondDebt] },
+      { ...raw.items[0], id: 'parallel', threadId: 'channel', chatTitle: 'ARK / 渠道 / 合作 · v1', lane: 'parallel', order: 0 },
+    ], overrides: [{ itemId: 'full', order: 3, ref: 'human:message', reason: '用户排序' }] })
+    expect(reviewChats(plan)).toEqual([
+      { key: 'thread:channel', threadId: 'channel', title: 'ARK / 渠道 / 合作 · v1', lane: 'parallel', order: 0, itemIds: ['parallel'], debtEventIds: [ID] },
+      { key: 'thread:demo', threadId: 'demo', title: 'ARK / 架构 / 任务演示 · v1', lane: 'main', order: 2, itemIds: ['demo'], debtEventIds: [] },
+      { key: 'thread:roles', threadId: 'roles', title: 'ARK / 产品 / 用户与角色 · v1', lane: 'main', order: 3, itemIds: ['roles', 'full'], debtEventIds: [ID, secondDebt] },
+    ])
+    expect(plan.items).toHaveLength(4)
+    expect(plan.items[2]?.debtEventIds).toEqual([ID, secondDebt])
+  })
+
+  it('uses the earliest rank without an override and never replaces an unavailable chat name with a step title', () => {
+    const raw = fixture()
+    const plan = parseReviewPlan({ ...raw, items: [
+      { ...raw.items[0], threadId: 'unnamed', order: 4, lane: 'parallel' },
+      { ...raw.items[0], id: 'earlier', threadId: 'unnamed', order: 1, lane: 'conditional' },
+      { ...raw.items[1], after: [] },
+    ] })
+    expect(reviewChats(plan).map(({ title, order, lane }) => ({ title, order, lane }))).toEqual([
+      { title: '聊天名称待同步（unnamed）', order: 1, lane: 'conditional' },
+      { title: '查看任务演示', order: 2, lane: 'main' },
+    ])
   })
 })
 

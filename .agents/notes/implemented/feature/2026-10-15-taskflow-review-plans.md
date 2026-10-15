@@ -1,4 +1,4 @@
-# Agent Note: TaskFlow review plans retain separate debt and source identities
+# Agent Note: TaskFlow review plans identify conversations and retain exact debts
 
 Status: implemented
 
@@ -6,13 +6,13 @@ English | [中文](2026-10-15-taskflow-review-plans.zh.md)
 
 ## Problem
 
-The attention ledger records execution and unresolved human decisions, but it cannot express the order in which related material merits review. Sorting debts by task name confuses distinct review requests that share a task. A saved order also becomes misleading when another conversation has new information that the plan has not incorporated.
+The attention ledger records execution and unresolved human decisions, but it cannot express the order in which related material merits review. Step descriptions do not identify the conversation to revisit, and several steps can refer to the same conversation. Sorting debts by task name also confuses distinct review requests that share a task. A saved order becomes misleading when another conversation has new information that the plan has not incorporated.
 
 ## Decision
 
-Project review plans are separate local JSON files read through the TaskFlow host. The client validates the files, shows the saved order with explicit ordering overrides, and labels main, parallel, and conditional items. Item references and advisory predecessors explain where to continue without imposing approval gates. A project with a plan is reachable through the project selector even when it has no recent activity, todo, or debt.
+Project review plans are separate local JSON files read through the TaskFlow host. The client validates the files and shows actual conversation names in the saved order, including explicit ordering overrides, with parallel conversations listed separately. Steps with the same conversation ID share one row. A missing conversation name is labeled as awaiting synchronization rather than replaced by a step description. Step descriptions, reasons, conditions, and references remain plan metadata. A project with a plan is reachable through the project selector even when it has no recent activity, todo, or debt.
 
-Each item cites exact schema-v2 debt event IDs. Opening an item selects that debt identity even when several debts share the same task phrase. Review status comes from the ledger: an ordinary terminal event leaves the debt open; the existing audited human seal closes only its exact target; an exact supersede records replacement. Missing targets remain visibly unresolved. The [attention-ledger decision](2026-08-15-taskflow-attention-bar.md) continues to own execution and closure semantics.
+Each item cites exact schema-v2 debt event IDs, and the conversation row combines their review status. The review list has no copy-entry or debt-opening buttons; the existing pending-review tray opens and seals each exact debt, including debts sharing the same task phrase. Project trees retain activity history without branch-share percentages. Review status comes from the ledger: an ordinary terminal event leaves the debt open; the existing audited human seal closes only its exact target; an exact supersede records replacement. Missing targets remain visibly unresolved. The [attention-ledger decision](2026-08-15-taskflow-attention-bar.md) continues to own execution and closure semantics.
 
 The saved source records distinguish observed messages from reconciled messages. A pending record reports new information awaiting reconciliation; it never approves material or closes a task. Local watcher coverage and scan health appear separately from those saved source records; missing, stale, or failed observation remains visible. Plan reads refresh on the existing polling cadence. Read or validation failures retain the last valid plan and display an error, so broken metadata cannot erase the review order silently.
 
@@ -28,4 +28,4 @@ The saved source records distinguish observed messages from reconciled messages.
 
 The panel provides a shared local review order without changing the ledger schema, generic writer, seal gesture, or historical records. It sends no plan or conversation content to a model. Producers remain responsible for saving authorized metadata and accurate source references; the panel does not intercept messages from external applications or independently prove their reconciliation.
 
-The assembled keyless Web scenario checks exact opening for same-task debts, plan updates while the page remains open, source freshness labels, last-valid behavior, and the existing seal round-trip. Ordering is guidance rather than a scheduler: saving, reading, discussing, or reordering an item does not establish approval, completion, or permission to perform its work.
+The assembled keyless Web scenario uses synthetic full conversation names to check exact name display, same-conversation deduplication, the absence of review-list action buttons and branch percentages, exact tray opening for same-task debts, plan updates while the page remains open, source freshness labels, last-valid behavior, and the existing seal round-trip. Ordering is guidance rather than a scheduler: saving, reading, discussing, or reordering an item does not establish approval, completion, or permission to perform its work.

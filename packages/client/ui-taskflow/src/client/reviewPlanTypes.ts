@@ -4,6 +4,8 @@ export interface ReviewPlanItem {
   title: string
   ref: string
   threadId?: string
+  /** Native chat title, preserved verbatim; never inferred from the step title. */
+  chatTitle?: string
   order: number
   lane: 'main' | 'parallel' | 'conditional'
   reason: string
@@ -45,4 +47,15 @@ export interface ReviewPlan {
   items: ReviewPlanItem[]
   overrides: ReviewPlanOverride[]
   sources: ReviewPlanSource[]
+}
+
+/** One displayed chat after combining its planned reading steps. */
+export interface ReviewChat {
+  key: string
+  title: string
+  threadId?: string
+  lane: ReviewPlanItem['lane']
+  order: number
+  itemIds: string[]
+  debtEventIds: string[]
 }

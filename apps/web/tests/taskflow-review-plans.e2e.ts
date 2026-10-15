@@ -19,6 +19,14 @@ const DEBT_A = '123e4567-e89b-42d3-a456-426614175001'
 const DEBT_B = '123e4567-e89b-42d3-a456-426614175002'
 const ROLE_REF = '/private/ark/roles.md'
 const DOCUMENT_REF = '/private/ark/documents.md'
+const CHAT_TITLES = {
+  roles: 'ARK / 小程序架构 / 用户与角色 · v3',
+  demo: 'ARK / 小程序架构 / 任务与复用 · v2',
+  documents: 'ARK / 产品文档 / MRD与PRD · v4',
+  channel: 'ARK / 渠道验证 / 预算与成本 · v2',
+  offline: 'ARK / 线下教学 / 培训安排 · v1',
+}
+const UPDATED_DEMO_CHAT = 'ARK / 小程序架构 / 任务与复用 · v3'
 
 function reviewPlan() {
   return {
@@ -28,15 +36,16 @@ function reviewPlan() {
     updatedAt: new Date(NOW).toISOString(),
     basisRef: '/private/ark/review-order.md#review',
     items: [
-      { id: 'roles', title: '核对用户与角色', ref: ROLE_REF, order: 1, lane: 'main', reason: '先明确本轮角色', debtEventIds: [DEBT_A] },
-      { id: 'demo', title: '体验任务与复用', ref: '/private/ark/demo.html', order: 2, lane: 'main', reason: '检查一条完整任务', debtEventIds: [] },
-      { id: 'documents', title: '审阅MRD与PRD', ref: DOCUMENT_REF, order: 3, lane: 'main', reason: '再核对全文表达', after: ['roles'], debtEventIds: [DEBT_B] },
-      { id: 'channel', title: '核对渠道预算', ref: '/private/ark/budget.md', order: 4, lane: 'parallel', reason: '可以并行核对成本', debtEventIds: [] },
-      { id: 'offline', title: '检查线下教学', ref: '/private/ark/training.md', order: 5, lane: 'conditional', reason: '按培训时间安排', condition: '近期需要培训时提前', debtEventIds: [] },
+      { id: 'roles', threadId: 'ark-roles', chatTitle: CHAT_TITLES.roles, title: '核对用户与角色', ref: ROLE_REF, order: 1, lane: 'main', reason: '先明确本轮角色', debtEventIds: [DEBT_A] },
+      { id: 'demo', threadId: 'ark-demo', chatTitle: CHAT_TITLES.demo, title: '体验任务与复用', ref: '/private/ark/demo.html', order: 2, lane: 'main', reason: '检查一条完整任务', debtEventIds: [] },
+      { id: 'documents', threadId: 'ark-documents', chatTitle: CHAT_TITLES.documents, title: '审阅MRD与PRD', ref: DOCUMENT_REF, order: 3, lane: 'main', reason: '再核对全文表达', after: ['roles'], debtEventIds: [DEBT_B] },
+      { id: 'channel', threadId: 'ark-channel', chatTitle: CHAT_TITLES.channel, title: '核对渠道预算', ref: '/private/ark/budget.md', order: 4, lane: 'parallel', reason: '可以并行核对成本', debtEventIds: [] },
+      { id: 'offline', threadId: 'ark-offline', chatTitle: CHAT_TITLES.offline, title: '检查线下教学', ref: '/private/ark/training.md', order: 5, lane: 'conditional', reason: '按培训时间安排', condition: '近期需要培训时提前', debtEventIds: [] },
+      { id: 'roles-followup', threadId: 'ark-roles', chatTitle: CHAT_TITLES.roles, title: '核对角色边界补充', ref: '/private/ark/roles-followup.md', order: 1.5, lane: 'main', reason: '接着核对同一聊天的补充步骤', debtEventIds: [] },
     ],
     overrides: [] as Array<{ itemId: string; order: number; ref: string; reason: string }>,
     sources: [{
-      surface: 'codex', threadId: 'ark-review', latestMessageId: 'user-1',
+      surface: 'codex', threadId: 'ark-roles', latestMessageId: 'user-1',
       observedAt: new Date(NOW).toISOString(), reconciledMessageId: 'user-1',
       reconciledAt: new Date(NOW).toISOString(), status: 'fresh', sourceRef: 'local:ark-review/user-1',
     }],
@@ -109,26 +118,33 @@ describe('web e2e: TaskFlow saved review plans', () => {
     const picker = page.getByRole('combobox', { name: '项目' })
     await picker.selectOption('ARK')
     const plan = page.getByRole('region', { name: 'ARK 审阅顺序' })
-    await plan.getByRole('listitem', { name: '审阅事项 核对用户与角色', exact: true }).waitFor()
-    const initialOrder = await plan.locator('[data-review-item]').evaluateAll(rows => rows.map(row => row.getAttribute('data-review-item')))
-    expect(initialOrder).toEqual(['roles', 'demo', 'documents', 'offline', 'channel'])
+    await plan.getByRole('listitem', { name: `审阅聊天 ${CHAT_TITLES.roles}`, exact: true }).waitFor()
+    const initialOrder = await plan.locator('[data-review-thread]').evaluateAll(rows => rows.map(row => row.getAttribute('data-review-thread')))
+    expect(initialOrder).toEqual(['ark-roles', 'ark-demo', 'ark-documents', 'ark-offline', 'ark-channel'])
+    expect(await plan.getByText(CHAT_TITLES.roles, { exact: true }).count()).toBe(1)
+    expect(await plan.getByRole('listitem').count()).toBe(5)
+    expect(await plan.getByRole('button').count()).toBe(0)
+    expect(await plan.getByText('核对用户与角色', { exact: true }).isVisible()).toBe(false)
+    expect(await plan.getByText('先明确本轮角色', { exact: true }).isVisible()).toBe(false)
+    expect(await plan.getByText('近期需要培训时提前', { exact: true }).isVisible()).toBe(false)
+    expect(await page.getByText(/主线占|分支占|\d+%/u).count()).toBe(0)
     await plan.getByRole('list', { name: '可并行审阅', exact: true }).waitFor()
-    await plan.getByText('近期需要培训时提前', { exact: true }).waitFor()
     const initialSnapshot = await plan.ariaSnapshot()
     const qaScreenshotPath = process.env.DSH_TASKFLOW_REVIEW_QA_SCREENSHOT
     if (qaScreenshotPath !== undefined) await page.screenshot({ path: qaScreenshotPath, fullPage: true })
 
     const debtCard = page.getByRole('region', { name: `${SHARED_TASK} 详情` })
-    await plan.getByRole('button', { name: `查看待审记录 核对用户与角色 ${DEBT_A}`, exact: true }).click()
+    const tray = page.getByRole('region', { name: '待你收口', exact: true })
+    const trayDebts = tray.getByRole('button', { name: SHARED_TASK, exact: true })
+    await trayDebts.nth(0).click()
     await debtCard.getByText(ROLE_REF, { exact: true }).waitFor()
     await debtCard.getByRole('button', { name: '关闭', exact: true }).click()
-    await plan.getByRole('button', { name: `查看待审记录 审阅MRD与PRD ${DEBT_B}`, exact: true }).click()
+    await trayDebts.nth(1).click()
     await debtCard.getByText(DOCUMENT_REF, { exact: true }).waitFor()
     await debtCard.getByRole('button', { name: '关闭', exact: true }).click()
 
     await appendFile(ledgerPath, eventLine('123e4567-e89b-42d3-a456-426614175003', 'done', 1))
-    const tray = page.getByRole('region', { name: '待你收口', exact: true })
-    await plan.getByRole('button', { name: `查看待审记录 核对用户与角色 ${DEBT_A}`, exact: true }).click()
+    await trayDebts.nth(0).click()
     await debtCard.locator('dd').filter({ hasText: 'codex 完成' }).first().waitFor({ timeout: 25_000 })
     await expect.poll(() => tray.getByRole('button', { name: SHARED_TASK, exact: true }).count(), { timeout: 25_000 }).toBe(2)
     await debtCard.getByRole('button', { name: '关闭', exact: true }).click()
@@ -136,42 +152,45 @@ describe('web e2e: TaskFlow saved review plans', () => {
     const updatedPlan = reviewPlan()
     updatedPlan.revision = 2
     updatedPlan.items[1]!.title = '体验任务与第二次复用'
+    updatedPlan.items[1]!.chatTitle = UPDATED_DEMO_CHAT
     updatedPlan.overrides = [{ itemId: 'demo', order: 0, ref: 'local:ark-review/user-2', reason: '本轮先看Demo' }]
     updatedPlan.sources[0]!.latestMessageId = 'user-2'
     updatedPlan.sources[0]!.status = 'pending'
     await writeFile(planPath, JSON.stringify(updatedPlan), { mode: 0o600 })
-    await plan.getByRole('listitem', { name: '审阅事项 体验任务与第二次复用', exact: true }).waitFor({ timeout: 25_000 })
+    await plan.getByRole('listitem', { name: `审阅聊天 ${UPDATED_DEMO_CHAT}`, exact: true }).waitFor({ timeout: 25_000 })
     await plan.getByText('信息来源 · 有新信息待核对', { exact: true }).click()
     await plan.getByText('Codex · 有新信息待核对', { exact: true }).waitFor()
-    expect(await plan.locator('[data-review-item]').first().getAttribute('data-review-item')).toBe('demo')
+    expect(await plan.locator('[data-review-thread]').first().getAttribute('data-review-thread')).toBe('ark-demo')
     expect(await tray.getByRole('button', { name: SHARED_TASK, exact: true }).count()).toBe(2)
     const updatedSnapshot = await plan.ariaSnapshot()
 
-    await plan.getByRole('button', { name: `查看待审记录 核对用户与角色 ${DEBT_A}`, exact: true }).click()
+    await trayDebts.nth(0).click()
     await debtCard.getByText(ROLE_REF, { exact: true }).waitFor()
     await debtCard.getByRole('button', { name: '收口', exact: true }).click()
     await expect.poll(async () => {
       const rows = (await readFile(ledgerPath, 'utf8')).trim().split('\n').map(line => JSON.parse(line) as { payload?: { resolves_event_id?: string; seal?: boolean } })
       return rows.filter(row => row.payload?.seal === true).map(row => row.payload?.resolves_event_id)
     }, { timeout: 25_000 }).toEqual([DEBT_A])
-    await plan.locator('[data-review-item="roles"]').getByText('相关待审已收口', { exact: true }).waitFor({ timeout: 25_000 })
-    await plan.locator('[data-review-item="documents"]').getByText('待审阅', { exact: true }).waitFor()
+    await plan.locator('[data-review-thread="ark-roles"]').getByText('相关待审已收口', { exact: true }).waitFor({ timeout: 25_000 })
+    await plan.locator('[data-review-thread="ark-documents"]').getByText('待审阅', { exact: true }).waitFor()
+    expect(await trayDebts.count()).toBe(1)
     const sealedSnapshot = await plan.ariaSnapshot()
 
     await writeFile(planPath, '{', { mode: 0o600 })
     const readError = plan.getByRole('status')
     await expect.poll(() => readError.textContent(), { timeout: 25_000 }).toContain('审阅计划读取失败：')
-    await plan.getByRole('listitem', { name: '审阅事项 体验任务与第二次复用', exact: true }).waitFor()
-    expect(await plan.locator('[data-review-item]').first().getAttribute('data-review-item')).toBe('demo')
-    await plan.locator('[data-review-item="documents"]').getByText('待审阅', { exact: true }).waitFor()
+    await plan.getByRole('listitem', { name: `审阅聊天 ${UPDATED_DEMO_CHAT}`, exact: true }).waitFor()
+    expect(await plan.locator('[data-review-thread]').first().getAttribute('data-review-thread')).toBe('ark-demo')
+    await plan.locator('[data-review-thread="ark-documents"]').getByText('待审阅', { exact: true }).waitFor()
 
     await compareOrRefreshGolden(GOLDEN, [
       'INITIAL', initialSnapshot,
-      'EXACT-OPEN', `roles=${ROLE_REF}`, `documents=${DOCUMENT_REF}`,
+      'CHAT-IDENTITY', 'same-thread-reading-steps=2', 'visible-chat-rows=5', 'duplicate-chat-name=1', 'plan-action-buttons=0', 'branch-percentages=0',
+      'EXACT-OPEN-IN-TRAY', `roles=${ROLE_REF}`, `documents=${DOCUMENT_REF}`,
       'ORDINARY-DONE', 'open-review-debts=2',
       'UPDATED-IN-PLACE', updatedSnapshot,
       'EXACT-SEAL', `resolved=${DEBT_A}`, sealedSnapshot,
-      'INVALID-PLAN', 'last-valid-order=demo,roles,documents,offline,channel', 'read-error=visible',
+      'INVALID-PLAN', 'last-valid-chat-order=ark-demo,ark-roles,ark-documents,ark-offline,ark-channel', 'read-error=visible',
     ].join('\n'), MODE)
     expect(tripwire.pageErrors).toEqual([])
   }, 180_000)

@@ -308,7 +308,6 @@ export function TaskFlowBar({ useLedger, useReviewPlans, seal, todos }: TaskFlow
           selectedDebt={selectedDebt}
           reviewState={reviewPlans}
           reviewDebts={model.needsYou}
-          onOpenDebt={openDebt}
           onCard={(task) => {
             const debt = [tree.main, ...tree.branches].find(entry => entry?.task === task)?.debt
             setSelectedDebtKey(debt === undefined || debt === null ? null : debtKey(debt))

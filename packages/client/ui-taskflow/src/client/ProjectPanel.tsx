@@ -58,14 +58,12 @@ export interface ProjectPanelProps {
   onPin: (task: string) => void
   /** Task whose debt card is open (owned by the bar so the tray can open it). */
   cardTask: string | null
-  /** Exact tray or plan selection; undefined retains task-tag selection. */
+  /** Exact tray selection; undefined retains task-tag selection. */
   selectedDebt?: NeedsYouItem | null
   /** Validated plan metadata and read health, independent of ledger outcomes. */
   reviewState: ReviewPlansState
   /** Every open review debt, including multiple reviews sharing a task name. */
   reviewDebts: readonly NeedsYouItem[]
-  /** Open one exact debt from the project review order. */
-  onOpenDebt: (debt: NeedsYouItem) => void
   onCard: (task: string | null) => void
   /** Queue a seal of an open debt with Sean's optional closing note. */
   onSeal: (debt: NeedsYouItem, note: string) => void
@@ -144,23 +142,18 @@ function edgeClass(task: TreeTask): string {
 }
 
 /**
- * The project tree panel (Branch Compass inside TaskFlow): a ratio line that
- * says whether the week went to the mainline or leaked into branches, the
- * mainline with every unresolved branch forking off where it began, and the
+ * The project tree panel: saved chat review order, the mainline with every
+ * unresolved branch forking off where it began, and the
  * project's todo list below. Settled branches only appear as a summary line;
  * an open debt's tag opens its card (seal with a note, continuation prompt).
  * @param props - tree, clock, todo read, pin and close verbs.
  * @returns The panel element.
  */
 export function ProjectPanel({
-  tree, events, now, todos, onPin, cardTask, selectedDebt, reviewState, reviewDebts, onOpenDebt, onCard, onSeal, onClose,
+  tree, events, now, todos, onPin, cardTask, selectedDebt, reviewState, reviewDebts, onCard, onSeal, onClose,
 }: ProjectPanelProps): ReactElement {
   const [allRows, setAllRows] = useState(false)
   const [showSettled, setShowSettled] = useState(false)
-
-  const total = tree.mainDur + tree.branchDur
-  const branchShare = total === 0 ? 0 : Math.round((tree.branchDur / total) * 100)
-  const leaning = total > 0 && tree.branchDur > tree.mainDur
 
   const rows = allRows ? tree.branches : tree.branches.slice(0, PANEL_BRANCH_ROWS)
   const windowStart = now - TREE_WINDOW_MS
@@ -227,26 +220,13 @@ export function ProjectPanel({
     <section className={css.panel} aria-label={`${tree.label} 项目树`} onClick={(e) => { e.stopPropagation() }}>
       <div className={css.head}>
         <span className={css.name}>{tree.label}</span>
-        <span
-          className={css.meter}
-          role="img"
-          aria-label={`近 7 天 主线 ${fmtDur(tree.mainDur)} · 分支 ${fmtDur(tree.branchDur)}`}
-          title={`近 7 天 主线 ${fmtDur(tree.mainDur)} · 分支 ${fmtDur(tree.branchDur)}`}
-        >
-          <i className={css.meterMain} style={{ flexGrow: tree.mainDur }} />
-          <i className={css.meterBranch} style={{ flexGrow: tree.branchDur }} />
-        </span>
-        {total === 0
-          ? <span className={css.muted}>近 7 天没有活动</span>
-          : leaning
-            ? <span className={css.lean}>{`分支占 ${branchShare}%，重心偏到分支了`}</span>
-            : <span className={css.calm}>{`主线占 ${100 - branchShare}%`}</span>}
+        {tree.mainDur + tree.branchDur === 0 && <span className={css.muted}>近 7 天没有活动</span>}
         <span className={css.spacer} />
         <button type="button" className={css.btn} onClick={onClose}>收起</button>
       </div>
 
       {hasReviewPlan && <ReviewPlan
-        project={tree.label} state={reviewState} events={events} debts={reviewDebts} onOpenDebt={onOpenDebt}
+        project={tree.label} state={reviewState} events={events} debts={reviewDebts}
       />}
 
       <div className={css.graph}>
