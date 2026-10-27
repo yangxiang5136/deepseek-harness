@@ -10,7 +10,7 @@ import {
   IconDarkOutline16, IconFollowsystemOutline16, IconLightOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ThemePreference } from '../theme-settings.ts'
+import type { ThemePalette, ThemePreference } from '../theme-settings.ts'
 import type { ThemeKey } from './locales.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { createAppearanceRowStore } from './settings-store.ts'
@@ -20,6 +20,8 @@ import css from './AppearanceRow.module.css'
 export interface AppearanceRowInjected {
   /** Switch the theme preference. */
   setTheme: (id: ThemePreference) => void
+  /** Switch visual colors independently of the color scheme. */
+  setPalette: (palette: ThemePalette) => void
 }
 
 /** Full component props: runtime share + store share + locale seat + injected face. */
@@ -39,8 +41,9 @@ const CUBES: readonly { id: ThemePreference; labelKey: ThemeKey; Icon: typeof Ic
  * @param props - composed slot props.
  * @returns the row element tree.
  */
-export function AppearanceRow({ t, setTheme, useStore }: AppearanceRowComponentProps) {
+export function AppearanceRow({ t, setTheme, setPalette, useStore }: AppearanceRowComponentProps) {
   const preference = useStore(s => s.preference)
+  const palette = useStore(s => s.palette)
   return (
     <div className={css.group}>
       <div className={css.title}>{t('appearance.title')}</div>
@@ -55,6 +58,20 @@ export function AppearanceRow({ t, setTheme, useStore }: AppearanceRowComponentP
           >
             <Icon />
             {t(labelKey)}
+          </button>
+        ))}
+      </div>
+      <div className={css.paletteRow} role="group" aria-label={t('appearance.palette')}>
+        <span className={css.paletteLabel}>{t('appearance.palette')}</span>
+        {(['default', 'ark'] as const).map(id => (
+          <button
+            key={id}
+            type="button"
+            className={clsx(css.paletteButton, palette === id && css.paletteSelected)}
+            aria-pressed={palette === id}
+            onClick={() => { setPalette(id) }}
+          >
+            {t(id === 'ark' ? 'appearance.palette.ark' : 'appearance.palette.default')}
           </button>
         ))}
       </div>

@@ -5,24 +5,25 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { injectBootTheme } from './boot-theme.ts'
 import {
-  DEFAULT_PREFERENCE, THEME_SETTINGS_NAMESPACE, ThemeSettingsSchema,
-  type ThemePreference, type ThemeSettings,
+  DEFAULT_PALETTE, DEFAULT_PREFERENCE, THEME_SETTINGS_NAMESPACE, ThemeSettingsSchema,
+  type ThemeSettings,
 } from './theme-settings.ts'
 
 export {
-  DEFAULT_PREFERENCE, THEME_PREFERENCE_FIELD, THEME_PREFERENCES, THEME_SETTINGS_NAMESPACE,
-  type ThemePreference, type ThemeSettings,
+  DEFAULT_PALETTE, DEFAULT_PREFERENCE, THEME_PALETTE_FIELD, THEME_PALETTES,
+  THEME_PREFERENCE_FIELD, THEME_PREFERENCES, THEME_SETTINGS_NAMESPACE,
+  type ThemePalette, type ThemePreference, type ThemeSettings,
 } from './theme-settings.ts'
 
 const THEME_NAMESPACE = settingsNamespace(THEME_SETTINGS_NAMESPACE)
 
 /** Read the registered preference or use the schema default without a settings provider. */
-function readPreference(ctx: Context): ThemePreference {
+function readSettings(ctx: Context): ThemeSettings {
   const settings = ctx.get('settings')
-  if (settings === undefined) return DEFAULT_PREFERENCE
+  if (settings === undefined) return { preference: DEFAULT_PREFERENCE, palette: DEFAULT_PALETTE }
   const section = settings.get(THEME_NAMESPACE) as ThemeSettings | undefined
-  if (section === undefined) return DEFAULT_PREFERENCE
-  return section.preference
+  if (section === undefined) return { preference: DEFAULT_PREFERENCE, palette: DEFAULT_PALETTE }
+  return section
 }
 
 /**
@@ -36,7 +37,10 @@ export function apply(ctx: Context): void {
   })
   ctx.inject(['webServer'], (httpCtx) => {
     httpCtx.effect(
-      () => httpCtx.webServer.tapIndex(html => injectBootTheme(html, readPreference(ctx))),
+      () => httpCtx.webServer.tapIndex((html) => {
+        const settings = readSettings(ctx)
+        return injectBootTheme(html, settings.preference, settings.palette)
+      }),
       'client-ui-theme: initial theme bootstrap',
     )
   })

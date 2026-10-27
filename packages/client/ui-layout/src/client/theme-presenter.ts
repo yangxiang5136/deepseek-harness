@@ -19,8 +19,13 @@ export class ThemePresenter {
   /** The single metadata node this presenter inserts and removes. */
   private readonly themeColorMeta: HTMLMetaElement
 
-  /** Create the presenter-owned metadata node before the first snapshot arrives. */
+  /** Adopt bootstrap token ownership and create metadata before the first snapshot arrives. */
   constructor() {
+    const bootTokens = document.body.getAttribute('data-dsw-boot-tokens')
+    if (bootTokens !== null) {
+      this.appliedTokens = bootTokens.split(' ')
+      document.body.removeAttribute('data-dsw-boot-tokens')
+    }
     this.themeColorMeta = document.createElement('meta')
     this.themeColorMeta.name = 'theme-color'
   }

@@ -48,19 +48,53 @@ describe('ThemeRuntime', () => {
     expect(host.set).toHaveBeenCalledOnce()
   })
 
+  it('switches the persisted ARK palette independently, restores original tokens, and respects explicit layers', () => {
+    const { theme, host, events } = make()
+    theme.setTheme('dark')
+    theme.setPalette('ark')
+    expect(theme.getTheme()).toMatchObject({ preference: 'dark', palette: 'ark' })
+    expect(theme.getTheme().active.tokens['--dsw-alias-brand-primary']).toBe('#A89AFF')
+    expect(host.set).toHaveBeenCalledWith('palette', 'ark')
+    const count = events.length
+    theme.setPalette('ark')
+    expect(events).toHaveLength(count)
+    const dispose = theme.overrideTokens('custom', {
+      '--dsw-alias-brand-primary': { light: 'custom-light', dark: 'custom-dark' },
+    })
+    expect(theme.getTheme().active.tokens['--dsw-alias-brand-primary']).toBe('custom-dark')
+    theme.setPalette('default')
+    expect(theme.getTheme().active.tokens).toEqual({ '--dsw-alias-brand-primary': 'custom-dark' })
+    dispose()
+    expect(theme.getTheme().active.tokens).toEqual({})
+    expect(theme.getTheme().preference).toBe('dark')
+  })
+
+  it('adopts palette-only Host updates without replacing an in-process custom theme', () => {
+    const { theme, host } = make()
+    host.publish({ status: 'ready', value: { preference: 'system', palette: 'default' }, revision: 1, writable: true })
+    theme.register({ id: 'custom', colorScheme: 'light', tokens: { '--custom': 'kept' } })
+    theme.setTheme('custom')
+    host.publish({ value: { preference: 'system', palette: 'ark' }, revision: 2 })
+    expect(theme.getTheme()).toMatchObject({ preference: 'custom', palette: 'ark' })
+    expect(theme.getTheme().active.tokens['--custom']).toBe('kept')
+    host.publish({ value: { preference: 'dark', palette: 'ark' }, revision: 3 })
+    expect(theme.getTheme().preference).toBe('dark')
+    expect(host.set).not.toHaveBeenCalled()
+  })
+
   it('adopts a published Host section without writing it back', () => {
     const { theme, events, host } = make()
-    host.publish({ status: 'ready', value: { preference: 'dark' }, revision: 1, writable: true })
+    host.publish({ status: 'ready', value: { preference: 'dark', palette: 'default' }, revision: 1, writable: true })
     expect(theme.getTheme().preference).toBe('dark')
     expect(events).toHaveLength(1)
     expect(host.set).not.toHaveBeenCalled()
-    host.publish({ value: { preference: 'dark' }, revision: 2 })
+    host.publish({ value: { preference: 'dark', palette: 'default' }, revision: 2 })
     expect(events).toHaveLength(1)
   })
 
   it('adopts a section already standing at construction', () => {
     const host = stubSettingsScope<ThemeSettings>()
-    host.publish({ status: 'ready', value: { preference: 'dark' }, revision: 1, writable: true })
+    host.publish({ status: 'ready', value: { preference: 'dark', palette: 'default' }, revision: 1, writable: true })
     const { theme } = make(host)
     expect(theme.getTheme().preference).toBe('dark')
   })
@@ -227,6 +261,16 @@ describe('ThemeRuntime', () => {
       media.flip()
       expect(theme.getTheme().active.id).toBe('light')
       expect(events).toHaveLength(1)
+    })
+
+    it('keeps ARK selected while system mode resolves the matching color pairs', () => {
+      const media = stubMedia(true)
+      const { theme } = make()
+      theme.setPalette('ark')
+      expect(theme.getTheme().active.tokens['--dsw-alias-brand-primary']).toBe('#A89AFF')
+      media.flip()
+      expect(theme.getTheme()).toMatchObject({ preference: 'system', palette: 'ark' })
+      expect(theme.getTheme().active.tokens['--dsw-alias-brand-primary']).toBe('#5A42F9')
     })
 
     it('OS flips do not republish while a concrete preference is set', () => {

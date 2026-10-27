@@ -8,11 +8,12 @@
 // Zero model calls: everything is pure client + persistence state on a blank
 // frame, so there is no fixture and a stray stream would fail loud on the
 // open llm seam.
-import { readFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
-import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, onTestFailed, vi } from 'vitest'
 import { join } from 'node:path'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import {
@@ -32,10 +33,33 @@ describe('web e2e: settings modal and General preferences', () => {
   let browser: Browser
   let page: Page
   let tripwire: ReturnType<typeof watchConsole>
+  let busRoot: string | undefined
 
   beforeAll(async () => {
+    busRoot = await mkdtemp(join(tmpdir(), 'dsh-settings-taskflow-'))
+    const ledger = join(busRoot, 'events.jsonl')
+    const todos = join(busRoot, 'todo')
+    const plans = join(busRoot, 'review-plans')
+    const watchStatus = join(busRoot, 'review-watch-status.json')
+    await mkdir(todos, { mode: 0o700 })
+    await mkdir(plans, { mode: 0o700 })
+    await writeFile(ledger, `${JSON.stringify({
+      schema_version: 2, event_id: '123e4567-e89b-42d3-a456-426614176000',
+      ts: new Date(Date.now() - 60_000).toISOString(), event: 'start',
+      task: '主题校验任务', project: 'TaskFlow', surface: 'codex',
+    })}\n`, { mode: 0o600 })
+    await writeFile(watchStatus, JSON.stringify({
+      lastScanAt: new Date().toISOString(), lastErrorCount: 0,
+      coverage: ['Codex'], excluded: [],
+    }), { mode: 0o600 })
+    vi.stubEnv('DSH_TASKFLOW_LEDGER', ledger)
+    vi.stubEnv('DSH_TASKFLOW_ATTENTION_DIR', busRoot)
+    vi.stubEnv('DSH_TASKFLOW_TODO_DIR', todos)
+    vi.stubEnv('DSH_TASKFLOW_REVIEW_PLANS_DIR', plans)
+    vi.stubEnv('DSH_TASKFLOW_REVIEW_WATCH_STATUS', watchStatus)
     scaffold = await launchWebScaffold({})
-    browser = await chromium.launch()
+    const channel = process.env.DSH_TEST_BROWSER_CHANNEL
+    browser = await chromium.launch(channel === undefined ? {} : { channel })
     // Chinese browser: the shared page asserts the localized settings surface
     // the client derives from it (the English default has its own spec below).
     page = await browser.newPage({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
@@ -45,8 +69,13 @@ describe('web e2e: settings modal and General preferences', () => {
   }, 120_000)
 
   afterAll(async () => {
-    await browser?.close()
-    await scaffold?.close()
+    try {
+      await browser?.close()
+      await scaffold?.close()
+    } finally {
+      vi.unstubAllEnvs()
+      if (busRoot !== undefined) await rm(busRoot, { recursive: true, force: true })
+    }
   })
 
   it('opens the settings dialog, switches sections, and closes by every path', async () => {
@@ -178,16 +207,19 @@ describe('web e2e: settings modal and General preferences', () => {
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
 
-  it('uses the persisted dark preference while plugins are still loading', async () => {
+  it('uses the persisted dark ARK palette while plugins are still loading', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-settings-boot-theme'))
     await page.emulateMedia({ colorScheme: 'light' })
     await page.getByRole('button', { name: '设置', exact: true }).click()
     const initialDialog = page.getByRole('dialog', { name: '设置' })
     const darkCube = initialDialog.getByRole('button', { name: '深色' })
     await darkCube.click()
+    await initialDialog.getByRole('button', { name: '方舟', exact: true }).click()
     await expect.poll(() => darkCube.getAttribute('aria-pressed'), { timeout: 5_000 }).toBe('true')
     await expect.poll(async () => readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8'), { timeout: 5_000 })
       .toMatch(/ui-theme:\n\s+preference: dark/)
+    await expect.poll(async () => readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8'), { timeout: 5_000 })
+      .toMatch(/palette: ark/)
     await page.keyboard.press('Escape')
 
     // Hold real plugin bundles so the shell-owned loading page remains observable.
@@ -211,12 +243,14 @@ describe('web e2e: settings modal and General preferences', () => {
         return {
           attr: document.body.hasAttribute('data-ds-dark-theme'),
           background: getComputedStyle(boot).backgroundColor,
+          brand: getComputedStyle(document.body).getPropertyValue('--dsw-alias-brand-primary').trim(),
           colorScheme: document.documentElement.style.colorScheme,
         }
       })
       expect(state).toEqual({
         attr: true,
-        background: 'rgb(21, 21, 23)',
+        background: 'rgb(20, 21, 34)',
+        brand: '#A89AFF',
         colorScheme: 'dark',
       })
     } finally {
@@ -229,6 +263,7 @@ describe('web e2e: settings modal and General preferences', () => {
     acknowledgeReloadConnectionLoss(tripwire, warningStart)
     await page.getByRole('button', { name: '设置', exact: true }).click()
     const restoredDialog = page.getByRole('dialog', { name: '设置' })
+    await restoredDialog.getByRole('button', { name: '原版', exact: true }).click()
     const systemCube = restoredDialog.getByRole('button', { name: '跟随系统' })
     await systemCube.click()
     await expect.poll(() => systemCube.getAttribute('aria-pressed'), { timeout: 5_000 }).toBe('true')
@@ -340,6 +375,104 @@ describe('web e2e: settings modal and General preferences', () => {
     await page.getByRole('dialog', { name: '设置' }).getByRole('button', { name: '浅色' }).click()
     await expect.poll(async () => (await readState()).attr, { timeout: 5_000 }).toBe(false)
     expectThemeColorSynchronized(await readState())
+    await page.keyboard.press('Escape')
+    expect(tripwire.pageErrors).toEqual([])
+  }, 90_000)
+
+  it('switches shared dsh and TaskFlow colors, persists the palette, and restores the original colors', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-settings-palette'))
+    const readColors = async (target: Page = page) => await target.getByRole('combobox', { name: '项目' })
+      .locator('..').locator('..').evaluate((banner) => {
+        const body = getComputedStyle(document.body)
+        const taskflow = getComputedStyle(banner)
+        return {
+          dark: document.body.hasAttribute('data-ds-dark-theme'),
+          background: body.backgroundColor,
+          brand: body.getPropertyValue('--dsw-alias-brand-primary').trim(),
+          taskflowBackground: taskflow.backgroundColor,
+          taskflowInk: taskflow.color,
+          taskflowMain: taskflow.getPropertyValue('--tf-main').trim(),
+          wait: taskflow.getPropertyValue('--tf-wait').trim(),
+          live: taskflow.getPropertyValue('--tf-live').trim(),
+          error: body.getPropertyValue('--dsw-alias-state-error-primary').trim(),
+        }
+      })
+    await page.emulateMedia({ colorScheme: 'light' })
+    await page.getByText('主题校验任务', { exact: true }).locator('..').locator('..').click()
+    await page.getByRole('combobox', { name: '项目' }).waitFor({ timeout: 10_000 })
+    const original = await readColors()
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: '设置' })
+    const ark = dialog.getByRole('button', { name: '方舟', exact: true })
+    expect(await dialog.getByRole('button', { name: '原版', exact: true }).getAttribute('aria-pressed')).toBe('true')
+    await ark.click()
+    await expect.poll(() => ark.getAttribute('aria-pressed')).toBe('true')
+    await expect.poll(async () => (await readColors()).taskflowMain).toBe('#5A42F9')
+    const lightArk = await readColors()
+    expect(lightArk).toMatchObject({
+      dark: false,
+      background: 'rgb(244, 247, 252)',
+      brand: '#5A42F9',
+      taskflowBackground: 'rgb(255, 255, 255)',
+      taskflowInk: 'rgb(36, 40, 61)',
+      wait: original.wait,
+      live: original.live,
+      error: original.error,
+    })
+    expect(await ark.evaluate(button => getComputedStyle(button).color)).toBe('rgb(90, 66, 249)')
+    await dialog.getByRole('button', { name: '深色', exact: true }).click()
+    await expect.poll(async () => (await readColors()).taskflowMain).toBe('#A89AFF')
+    expect(await readColors()).toMatchObject({
+      dark: true,
+      background: 'rgb(20, 21, 34)',
+      taskflowBackground: 'rgb(28, 30, 48)',
+      taskflowInk: 'rgb(238, 236, 255)',
+    })
+    await dialog.getByRole('button', { name: '跟随系统', exact: true }).click()
+    await expect.poll(async () => (await readColors()).dark).toBe(false)
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await expect.poll(async () => (await readColors()).taskflowMain).toBe('#A89AFF')
+    await page.emulateMedia({ colorScheme: 'light' })
+    await expect.poll(async () => readColors()).toEqual(lightArk)
+    await expect.poll(async () => readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8'))
+      .toMatch(/palette: ark/)
+    await page.keyboard.press('Escape')
+
+    const warningStart = tripwire.warnings.length
+    await page.reload({ waitUntil: 'load' })
+    await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+    acknowledgeReloadConnectionLoss(tripwire, warningStart)
+    await expect.poll(async () => readColors()).toEqual(lightArk)
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    expect(await page.getByRole('dialog', { name: '设置' })
+      .getByRole('button', { name: '方舟', exact: true }).getAttribute('aria-pressed')).toBe('true')
+    await page.keyboard.press('Escape')
+
+    const second = await launchWebScaffold({ harnessHome: scaffold.harnessHome })
+    const secondPage = await browser.newPage({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
+    const secondTripwire = watchConsole(secondPage)
+    try {
+      await secondPage.emulateMedia({ colorScheme: 'light' })
+      await secondPage.goto(second.baseUrl, { waitUntil: 'load' })
+      await secondPage.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+      await secondPage.getByText('主题校验任务', { exact: true }).locator('..').locator('..').click()
+      await expect.poll(async () => readColors(secondPage)).toEqual(lightArk)
+      expect(secondTripwire.pageErrors).toEqual([])
+      expect(secondTripwire.warnings).toEqual([])
+    } finally {
+      await secondPage.close()
+      await second.close()
+    }
+
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    const restoredDialog = page.getByRole('dialog', { name: '设置' })
+    await restoredDialog.getByRole('button', { name: '原版', exact: true }).click()
+    await expect.poll(async () => readColors()).toEqual(original)
+    await restoredDialog.getByRole('button', { name: '方舟', exact: true }).click()
+    await expect.poll(async () => readColors()).toEqual(lightArk)
+    await restoredDialog.getByRole('button', { name: '原版', exact: true }).click()
+    await restoredDialog.getByRole('button', { name: '浅色', exact: true }).click()
+    await expect.poll(async () => readColors()).toEqual(original)
     await page.keyboard.press('Escape')
     expect(tripwire.pageErrors).toEqual([])
   }, 90_000)

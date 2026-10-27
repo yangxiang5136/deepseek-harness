@@ -1,0 +1,78 @@
+/** ARK colors shared by the pre-plugin bootstrap and the live theme service. */
+
+/** Semantic color values for each base color scheme. */
+export const ARK_PALETTE: Readonly<Record<string, Readonly<{ light: string; dark: string }>>> = {
+  '--dsw-alias-bg-base': { light: '#F4F7FC', dark: '#141522' },
+  '--dsw-alias-bg-layer-1': { light: '#FFFFFF', dark: '#1C1E30' },
+  '--dsw-alias-bg-layer-2': { light: '#F8F9FF', dark: '#24263B' },
+  '--dsw-alias-bg-layer-3': { light: '#FFFFFF', dark: '#2A2D43' },
+  '--dsw-alias-bg-module-platform': { light: '#F0EEFF', dark: '#30294B' },
+  '--dsw-alias-bg-multi-select': { light: '#E3E4FF', dark: '#3A315A' },
+  '--dsw-alias-bg-overlay': { light: '#FFFFFF', dark: '#2A2D43' },
+  '--dsw-alias-border-l1': { light: '#EDF0F7', dark: '#2C3047' },
+  '--dsw-alias-border-l2': { light: '#E4EAF3', dark: '#3B405B' },
+  '--dsw-alias-border-l2-darkmode-thin': { light: '#E4EAF3', dark: '#34394F' },
+  '--dsw-alias-border-l3': { light: '#CCD3E4', dark: '#505671' },
+  '--dsw-alias-border-l4': { light: '#B5BED5', dark: '#646A86' },
+  '--dsw-alias-brand-primary': { light: '#5A42F9', dark: '#A89AFF' },
+  '--dsw-alias-brand-primary-invert': { light: '#5A42F9', dark: '#A89AFF' },
+  '--dsw-alias-brand-primary-new-colorprimary-new-color': { light: '#5A42F9', dark: '#A89AFF' },
+  '--dsw-alias-brand-text': { light: '#0F0F50', dark: '#EEECFF' },
+  '--dsw-alias-button-primary-fill': { light: '#5A42F9', dark: '#A89AFF' },
+  '--dsw-alias-button-primary-hover': { light: '#4930DE', dark: '#BCAFFF' },
+  '--dsw-alias-button-primary-dimmed': { light: '#E3E4FF', dark: '#3A315A' },
+  '--dsw-alias-button-info-fill': { light: '#5A42F9', dark: '#A89AFF' },
+  '--dsw-alias-button-info-hover': { light: '#4930DE', dark: '#BCAFFF' },
+  '--dsw-alias-button-elevated-fill': { light: '#FFFFFF', dark: '#30334B' },
+  '--dsw-alias-button-floating-fill': { light: '#FFFFFF', dark: '#24263B' },
+  '--dsw-alias-button-floating-hover': { light: '#F0EEFF', dark: '#34304C' },
+  '--dsw-alias-button-ghost-active-border': { light: '#A597F8', dark: '#8E7CE0' },
+  '--dsw-alias-button-ghost-active-fill': { light: '#F0EEFF', dark: '#3A315A' },
+  '--dsw-alias-button-ghost-active-hover': { light: '#E3E4FF', dark: '#473B6B' },
+  '--dsw-alias-interactive-bg-active': { light: '#E3E4FF', dark: '#3A315A' },
+  '--dsw-alias-interactive-bg-hover-accent': { light: '#EAE7FF', dark: '#3B325B' },
+  '--dsw-alias-interactive-bg-hover-solid': { light: '#F0EEFF', dark: '#2F2C45' },
+  '--dsw-alias-interactive-bg-hover': { light: 'rgba(90, 66, 249, 0.06)', dark: 'rgba(168, 154, 255, 0.10)' },
+  '--dsw-alias-label-primary': { light: '#24283D', dark: '#EEECFF' },
+  '--dsw-alias-label-primary-bluish': { light: '#0F0F50', dark: '#EEECFF' },
+  '--dsw-alias-label-primary-dimmed': { light: '#3D4059', dark: '#D9D5F0' },
+  '--dsw-alias-label-primary-foreground': { light: '#FFFFFF', dark: '#1C153A' },
+  '--dsw-alias-label-primary-inverted': { light: '#FFFFFF', dark: '#1C153A' },
+  '--dsw-alias-label-secondary': { light: '#62637D', dark: '#B6B3D0' },
+  '--dsw-alias-label-tertiary': { light: '#71738B', dark: '#9D9BB8' },
+  '--dsw-alias-label-caption': { light: '#777990', dark: '#9D9BB8' },
+  '--dsw-alias-label-dimmed': { light: '#C5C7D8', dark: '#52556E' },
+  '--dsw-alias-state-business-primary': { light: '#5A42F9', dark: '#A89AFF' },
+  '--dsw-alias-state-business-tertiary': { light: '#E3E4FF', dark: '#3A315A' },
+  '--dsw-alias-scrollbar-bg-l1': { light: '#D7D8EB', dark: '#454760' },
+  '--dsw-alias-scrollbar-bg-l2': { light: '#D7D8EB', dark: '#50536D' },
+  '--dsw-alias-scrollbar-hover-l1': { light: '#B3B3D3', dark: '#626580' },
+  '--dsw-alias-scrollbar-hover-l2': { light: '#B3B3D3', dark: '#626580' },
+  '--dsw-specific-bubble-highlight': { light: '#E3E4FF', dark: '#3A315A' },
+  '--dsw-specific-bubble': { light: '#EAF2FF', dark: '#262A45' },
+  '--dsw-specific-input-major': { light: '#FFFFFF', dark: '#24263B' },
+  '--dsw-specific-login-input': { light: '#F4F7FC', dark: '#1C1E30' },
+  '--dsw-specific-selector': { light: '#F0EEFF', dark: '#30294B' },
+  '--dsw-specific-sidebar-fill': { light: '#F0F3FC', dark: '#181A2B' },
+  '--dsw-specific-sidebar-nav-item-active-accent': { light: '#E3E4FF', dark: '#3A315A' },
+  '--dsw-specific-sidebar-nav-item-active': { light: '#E3E4FF', dark: '#3A315A' },
+  '--dsw-specific-sidebar-nav-item-hover': { light: '#E9ECF8', dark: '#27283E' },
+  '--dsw-specific-tip': { light: '#F0EEFF', dark: '#30294B' },
+  '--dsw-alias-taskflow-history-label': { light: '#24283D', dark: '#24283D' },
+  '--dsw-alias-taskflow-history-border': { light: 'rgba(255, 255, 255, 0.7)', dark: 'rgba(255, 255, 255, 0.7)' },
+  '--dsw-alias-taskflow-history-aggregate-label': { light: '#62637D', dark: '#C3BEDB' },
+  '--dsw-alias-taskflow-history-aggregate-bg': { light: '#EDEDF8', dark: '#34334D' },
+  '--dsw-alias-taskflow-history-packed-label': { light: '#45406D', dark: '#DED8F8' },
+  '--dsw-alias-taskflow-history-packed-bg': { light: 'linear-gradient(180deg, #EDEFFF, #E3E4FF)', dark: 'linear-gradient(180deg, #38334F, #443C63)' },
+  '--dsw-alias-taskflow-history-continuation': { light: '#62637D', dark: '#B6B3D0' },
+  '--dsw-shadow-taskflow-banner': { light: '0 -2px 10px rgba(15, 15, 80, 0.067)', dark: '0 -2px 10px rgba(0, 0, 0, 0.22)' },
+}
+
+/**
+ * Resolve ARK token pairs for the active base color scheme.
+ * @param scheme - Base light or dark palette.
+ * @returns Semantic overrides for that scheme.
+ */
+export function arkTokens(scheme: 'light' | 'dark'): Record<string, string> {
+  return Object.fromEntries(Object.entries(ARK_PALETTE).map(([name, modes]) => [name, modes[scheme]]))
+}

@@ -39,6 +39,10 @@
   - button "跟随系统" [pressed]:
     - img
     - text: 跟随系统
+  - group "配色":
+    - text: 配色
+    - button "原版" [pressed]
+    - button "方舟"
   - text: 繁忙时 Enter 键行为 仅在智能体运行时生效；Cmd/Ctrl+Enter 使用另一行为
   - button "排队发送":
     - text: 排队发送

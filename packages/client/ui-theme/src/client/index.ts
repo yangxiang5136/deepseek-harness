@@ -3,7 +3,7 @@
  * owns the live theme preference (light/dark/system), resolves `system` through
  * `prefers-color-scheme`, and publishes immutable snapshots; it never touches
  * the DOM — ui-layout's presenter consumes the resolved snapshot. The Host
- * settings scope loads and stores the preference in the user-settings
+ * settings scope loads and stores the preference and independent visual palette in the user-settings
  * document. The plugin also registers the Appearance preference row into the
  * settings General section — the theme feature owns its own settings surface.
  */
@@ -19,15 +19,16 @@ import type { AppearanceRowInjected } from './AppearanceRow.tsx'
 import { AppearanceRow } from './AppearanceRow.tsx'
 import { createAppearanceRowStore } from './settings-store.ts'
 import { en, zh, type ThemeKey } from './locales.ts'
+import { arkTokens } from '../ark-palette.ts'
 import {
-  DEFAULT_PREFERENCE, isThemePreference, THEME_PREFERENCE_FIELD, THEME_SETTINGS_NAMESPACE,
-  type ThemePreference, type ThemeSettings,
+  DEFAULT_PALETTE, DEFAULT_PREFERENCE, isThemePreference, THEME_PALETTE_FIELD, THEME_PREFERENCE_FIELD, THEME_SETTINGS_NAMESPACE,
+  type ThemePalette, type ThemePreference, type ThemeSettings,
 } from '../theme-settings.ts'
 
 export type { AppearanceRowComponentProps, AppearanceRowInjected } from './AppearanceRow.tsx'
 export type { AppearanceRowState } from './settings-store.ts'
 export type { ThemeKey } from './locales.ts'
-export type { ThemePreference, ThemeSettings } from '../theme-settings.ts'
+export type { ThemePalette, ThemePreference, ThemeSettings } from '../theme-settings.ts'
 
 /** Namespace owning this feature's settings-row copy. */
 export const SETTINGS_NS = 'settings.theme'
@@ -74,6 +75,8 @@ export interface ThemeDefinition {
 export interface ThemeSnapshot {
   /** The persisted preference (may be `system`). */
   preference: ThemePreference
+  /** Visual palette applied independently of the resolved light/dark scheme. */
+  palette: ThemePalette
   /**
    * The resolved active theme (`system` resolved via prefers-color-scheme)
    * with override layers folded into its tokens (seq order, later layers win
@@ -152,6 +155,8 @@ export class ThemeRuntime {
   private readonly host: SettingsScope<ThemeSettings>
   private themes: ThemeDefinition[] = [...BUILTIN_THEMES]
   private preference: ThemePreference
+  private acceptedPreference: ThemePreference = DEFAULT_PREFERENCE
+  private palette: ThemePalette = DEFAULT_PALETTE
   private revision = 0
   private snapshot: ThemeSnapshot
   private readonly media: MediaQueryList | undefined
@@ -200,6 +205,9 @@ export class ThemeRuntime {
    */
   exportInspectTokens(): ThemeTokenInspection[] {
     const tokens = new Map(BUILTIN_INSPECT_TOKENS.map(token => [token.name, token]))
+    for (const name of Object.keys(arkTokens('light'))) {
+      if (!tokens.has(name)) tokens.set(name, dynamicToken(name))
+    }
     for (const theme of this.themes) {
       for (const name of Object.keys(theme.tokens)) {
         if (!tokens.has(name)) tokens.set(name, dynamicToken(name))
@@ -229,11 +237,27 @@ export class ThemeRuntime {
     this.publish()
   }
 
+  /**
+   * Switch the visual palette without changing the light/dark preference.
+   * @param palette - Built-in palette selected in Appearance settings.
+   */
+  setPalette(palette: ThemePalette): void {
+    if (this.palette === palette) return
+    this.palette = palette
+    void this.host.set(THEME_PALETTE_FIELD, palette)
+    this.publish()
+  }
+
   /** Adopt the scope's accepted durable preference without writing it back. */
   private adopt(): void {
     const section = this.host.getSnapshot().value
-    if (section === undefined || this.preference === section.preference) return
-    this.preference = section.preference
+    if (section === undefined) return
+    const preferenceChanged = section.preference !== this.acceptedPreference
+    const preference = preferenceChanged || isThemePreference(this.preference) ? section.preference : this.preference
+    this.acceptedPreference = section.preference
+    if (this.preference === preference && this.palette === section.palette) return
+    this.preference = preference
+    this.palette = section.palette
     this.publish()
   }
 
@@ -300,6 +324,7 @@ export class ThemeRuntime {
     if (active === undefined) throw new Error(`theme registry lost "${resolvedId}"`)
     return Object.freeze({
       preference: this.preference,
+      palette: this.palette,
       active: this.composeActive(active),
       themes: Object.freeze([...this.themes]),
       revision: this.revision,
@@ -310,11 +335,15 @@ export class ThemeRuntime {
    * Fold the override layers into the active definition: seq order, later
    * layers win per-token, each value picked for the active color scheme (the
    * presenter consumes the composed snapshot and needs no override awareness).
-   * Without layers the registered definition passes through by identity.
+   * ARK colors compose before explicit override layers. With the original
+   * palette and no layers, the registered definition passes through by identity.
    */
   private composeActive(active: ThemeDefinition): ThemeDefinition {
-    if (this.overrides.size === 0) return active
-    const tokens: ThemeTokens = { ...active.tokens }
+    if (this.overrides.size === 0 && this.palette === 'default') return active
+    const tokens: ThemeTokens = {
+      ...active.tokens,
+      ...(this.palette === 'ark' ? arkTokens(active.colorScheme) : {}),
+    }
     for (const layer of [...this.overrides.values()].sort((a, b) => a.seq - b.seq)) {
       for (const [name, modes] of Object.entries(layer.tokens)) {
         tokens[name] = modes[active.colorScheme]
@@ -391,7 +420,7 @@ export function apply(ctx: ClientContext): void {
   const store = createAppearanceRowStore()
   let bound: BoundActions<typeof store> | undefined
   const sync = (snapshot: ThemeSnapshot): void => {
-    bound?.sync(snapshot.preference, snapshot.revision)
+    bound?.sync(snapshot.preference, snapshot.revision, snapshot.palette)
   }
   ctx.on('theme/change', sync)
   const injected = (actions: BoundActions<typeof store>): AppearanceRowInjected => {
@@ -401,6 +430,7 @@ export function apply(ctx: ClientContext): void {
     sync(theme.getTheme())
     return {
       setTheme: (id) => { theme.setTheme(id) },
+      setPalette: (palette) => { theme.setPalette(palette) },
     }
   }
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
