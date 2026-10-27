@@ -35,6 +35,26 @@ export interface TaskflowSealRequest {
   note?: string
 }
 
+/** Exact debt selected by a caller from a verified native human completion statement. */
+export interface TaskflowPhaseConfirmationRequest {
+  /** Exact project string of the open needs-you. */
+  project: string
+  /** Exact task phrase of the open needs-you. */
+  task: string
+  /** Raw timestamp of the specific debt; required for legacy debts. */
+  resolvesTs: string
+  /** Canonical identity when the target debt has an event ID. */
+  resolvesEventId?: string
+  /** Native interactive Codex thread UUID. */
+  threadId: string
+  /** Absolute transcript path under the host's Codex sessions or archived_sessions. */
+  sourcePath: string
+  /** Byte offset of the exact complete human response_item record. */
+  byteOffset: number
+  /** One verbatim user quotation, at most 280 characters; also the seal's note. */
+  quote: string
+}
+
 /** Outcome of a seal attempt; never throws for business outcomes. */
 export interface TaskflowSealResult {
   /** True when the done event was appended. */

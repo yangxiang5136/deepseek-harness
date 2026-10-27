@@ -260,7 +260,7 @@ describe('TaskFlowBar surface', () => {
     fireEvent.click(screen.getByRole('button', { name: '交付评审' }))
     const card = screen.getByRole('region', { name: '交付评审 详情' })
     expect(within(card).getByText('branch-x')).toBeTruthy()
-    fireEvent.click(within(card).getByRole('button', { name: '收口' }))
+    fireEvent.click(within(card).getByRole('button', { name: '本阶段结束，交史官复盘' }))
     await act(async () => { vi.advanceTimersByTime(SEAL_UNDO_MS + 10) })
     expect(seal).toHaveBeenCalledWith({
       project: 'digital-me',

@@ -658,6 +658,7 @@ describe('TaskflowLedgerGateway', () => {
       { method: 'todos', invocation: { kind: 'direct' } },
       { method: 'reviewPlans', invocation: { kind: 'direct' } },
       { method: 'seal', invocation: { kind: 'direct' } },
+      { method: 'confirmPhase', invocation: { kind: 'direct' } },
     ])
   })
 

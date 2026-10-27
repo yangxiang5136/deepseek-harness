@@ -144,6 +144,7 @@ export function NeedsYouTray({
                               type="button"
                               className={css.ok}
                               aria-label={`收口 ${debt.task}`}
+                              title="本阶段结束，交史官复盘；原始材料与续接入口保留"
                               onClick={() => { sealer.queue(debt) }}
                             >
                               ✓

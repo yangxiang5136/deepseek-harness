@@ -193,7 +193,7 @@ describe('web e2e: TaskFlow saved review plans', () => {
 
     await trayDebts.nth(0).click()
     await debtCard.getByText(ROLE_REF, { exact: true }).waitFor()
-    await debtCard.getByRole('button', { name: '收口', exact: true }).click()
+    await debtCard.getByRole('button', { name: '本阶段结束，交史官复盘', exact: true }).click()
     await expect.poll(async () => {
       const rows = (await readFile(ledgerPath, 'utf8')).trim().split('\n').map(line => JSON.parse(line) as { payload?: { resolves_event_id?: string; seal?: boolean } })
       return rows.filter(row => row.payload?.seal === true).map(row => row.payload?.resolves_event_id)

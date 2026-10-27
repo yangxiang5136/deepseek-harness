@@ -107,10 +107,10 @@ export function DebtCard({ debt, label, events, now, onSeal, onClose }: DebtCard
           onKeyDown={(e) => { if (e.key === 'Enter') seal() }}
         />
         <button type="button" className={`${css.btn} ${css.btnPrimary}`} onClick={seal}>
-          {parked ? '不做了，收口' : '收口'}
+          {parked ? '不做了，收口' : '本阶段结束，交史官复盘'}
         </button>
       </div>
-      <div className={css.muted}>留言会写进收口记录；以后接手这个项目的 AI 开工前会先读到。</div>
+      <div className={css.muted}>原始材料和续接入口保留。史官实际阅读整理后另留回执；留言会随本次记录保留。</div>
     </div>
   )
 }

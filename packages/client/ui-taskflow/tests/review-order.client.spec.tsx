@@ -50,10 +50,10 @@ describe('review order and exact debt detail', () => {
     expect(order.compareDocumentPosition(graph) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(within(order).queryByRole('button')).toBeNull()
     const tray = screen.getByRole('region', { name: '待你收口' })
-    fireEvent.click(within(tray).getAllByRole('button', { name: '同一任务', exact: true })[0]!)
+    fireEvent.click(within(tray).getAllByRole('button', { name: '同一任务' })[0]!)
     expect(within(screen.getByRole('region', { name: '同一任务 详情' })).getByText('exact-ref-0')).toBeTruthy()
     fireEvent.change(screen.getByPlaceholderText('收口备注 / 给 AI 的反馈（可选，一行）'), { target: { value: '仅给第一项的反馈' } })
-    fireEvent.click(within(tray).getAllByRole('button', { name: '同一任务', exact: true })[1]!)
+    fireEvent.click(within(tray).getAllByRole('button', { name: '同一任务' })[1]!)
     expect(within(screen.getByRole('region', { name: '同一任务 详情' })).getByText('exact-ref-1')).toBeTruthy()
     expect(screen.getByPlaceholderText<HTMLInputElement>('收口备注 / 给 AI 的反馈（可选，一行）').value).toBe('')
     expect(within(order).getByRole('list', { name: '建议顺序' }).querySelectorAll('li')).toHaveLength(1)
@@ -119,8 +119,10 @@ describe('review order and exact debt detail', () => {
 
   it('labels a missing native chat title explicitly and keeps generic plan titles usable', () => {
     const current = state()
+    const missingTitle = { ...current.plans[0]!.items[0]! }
+    delete missingTitle.chatTitle
     current.plans[0]!.items = [
-      { ...current.plans[0]!.items[0]!, chatTitle: undefined },
+      missingTitle,
       { id: 'generic', title: '通用审阅清单', ref: 'generic.md', order: 2, lane: 'main', reason: '通用计划', debtEventIds: [] },
     ]
     render(<ReviewPlan project="ARK" state={current} events={[]} debts={[]} />)
