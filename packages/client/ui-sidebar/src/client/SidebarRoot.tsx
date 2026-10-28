@@ -127,55 +127,57 @@ export function SidebarRoot({
       }}
       onPointerLeave={() => { armLinger() }}
     >
-      <div className={css.logoRow}>
-        {/* Expanded, the wordmark doubles as a New Session shortcut; the
-            collapsed rail's logo is the expand toggle below instead. */}
-        {wide && (
+      <div className={css.mainArea}>
+        <div className={css.logoRow}>
+          {/* Expanded, the wordmark doubles as a New Session shortcut; the
+              collapsed rail's logo is the expand toggle below instead. */}
+          {wide && (
+            <button
+              type="button"
+              className={clsx(css.brand, css.wide)}
+              aria-label={t('session.new.label')}
+              onClick={() => { startSession() }}
+            >
+              <BrandWordmark />
+            </button>
+          )}
+          {/* Rail resting state is the whale mark; hovering swaps in the panel
+              icon (the expand affordance, figma sidebar-hover flow). */}
+          <Tooltip label={collapsed ? t('toggle.open') : t('toggle.collapse')} delayMs={500}>
+            <button
+              type="button"
+              className={clsx(css.iconButton, css.toggle)}
+              aria-label={collapsed ? t('toggle.open') : t('toggle.collapse')}
+              onClick={() => { toggleSidebar() }}
+            >
+              {!wide && <FishLogo className={css.railFish} size={24} />}
+              {/* Rail icons render at 18 (figma rail spec); expanded keeps the glyph-native sizes. */}
+              <IconPanelLeftOutline16 className={css.panelIcon} size={wide ? 16 : 18} />
+            </button>
+          </Tooltip>
+        </div>
+
+        {/* Expanded, the button carries its own label — tooltip only on the rail. */}
+        <Tooltip label={t('session.new.label')} delayMs={500} disabled={wide}>
           <button
             type="button"
-            className={clsx(css.brand, css.wide)}
+            className={css.newSession}
             aria-label={t('session.new.label')}
             onClick={() => { startSession() }}
           >
-            <BrandWordmark />
-          </button>
-        )}
-        {/* Rail resting state is the whale mark; hovering swaps in the panel
-            icon (the expand affordance, figma sidebar-hover flow). */}
-        <Tooltip label={collapsed ? t('toggle.open') : t('toggle.collapse')} delayMs={500}>
-          <button
-            type="button"
-            className={clsx(css.iconButton, css.toggle)}
-            aria-label={collapsed ? t('toggle.open') : t('toggle.collapse')}
-            onClick={() => { toggleSidebar() }}
-          >
-            {!wide && <FishLogo className={css.railFish} size={24} />}
-            {/* Rail icons render at 18 (figma rail spec); expanded keeps the glyph-native sizes. */}
-            <IconPanelLeftOutline16 className={css.panelIcon} size={wide ? 16 : 18} />
+            <IconNewChatOutline16 size={wide ? 14 : 18} />
+            {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
           </button>
         </Tooltip>
-      </div>
 
-      {/* Expanded, the button carries its own label — tooltip only on the rail. */}
-      <Tooltip label={t('session.new.label')} delayMs={500} disabled={wide}>
-        <button
-          type="button"
-          className={css.newSession}
-          aria-label={t('session.new.label')}
-          onClick={() => { startSession() }}
-        >
-          <IconNewChatOutline16 size={wide ? 14 : 18} />
-          {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
-        </button>
-      </Tooltip>
-
-      {/* The browsing region fills the column between the controls and the
-          foot in both states; its rail icon column rides the same slot. */}
-      <div className={css.regionArea}>
-        {renderSlot('sidebar.workspaces', {
-          wide,
-          expandSidebar: () => { if (collapsed) toggleSidebar() },
-        })}
+        {/* The browsing region fills the column between the controls and the
+            foot in both states; its rail icon column rides the same slot. */}
+        <div className={css.regionArea}>
+          {renderSlot('sidebar.workspaces', {
+            wide,
+            expandSidebar: () => { if (collapsed) toggleSidebar() },
+          })}
+        </div>
       </div>
 
       {/* Footer actions stack above Settings in both sidebar widths. */}

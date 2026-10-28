@@ -30,4 +30,6 @@ The [pre-plugin bootstrap](../bug-fix/2026-08-10-pre-plugin-theme-bootstrap.md) 
 
 Color changes remain reversible without changing layout or task state. Built-in palette and scheme settings share one revisioned namespace and the existing write-failure recovery. Explicit override layers can intentionally differ from the selected palette, and third-party theme tokens beneath it can be superseded by ARK tokens.
 
+A short sidebar beside an expanded TaskFlow panel can leave less vertical room than the collapsed rail controls require. The apparent icon compression is clipping, not SVG resizing. The sidebar keeps its 36px control boxes in a scrollable upper area and leaves the footer fixed; the trailing inset accommodates the scrollbar without narrowing controls. The Settings icon retains its localized accessible name through visually hidden text. This local repair leaves TaskFlow sizing unchanged.
+
 The source palette and actual-browser evidence are different records. This round's screenshots and checks belong in the local QA directory `/Users/yangxiang/.local/share/dsh-ark-theme/20261028`; source inspection or a passing build alone does not establish the visible result.

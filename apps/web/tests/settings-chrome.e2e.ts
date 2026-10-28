@@ -611,6 +611,92 @@ describe('web e2e: settings modal and General preferences', () => {
     }
   }, 90_000)
 
+  it('keeps compact sidebar actions reachable above an expanded TaskFlow panel', async () => {
+    const compact = await browser.newPage({ viewport: { width: 1200, height: 600 }, locale: ZH_BROWSER_LOCALE })
+    const compactTripwire = watchConsole(compact)
+    onTestFailed(() => saveFailureShot(compact, 'web-e2e-compact-sidebar-short-height'))
+    const controlGeometry = async (name: string) => await compact.getByRole('button', { name, exact: true })
+      .evaluate((button) => {
+        const bounds = button.getBoundingClientRect()
+        const glyph = button.querySelector('svg')?.getBoundingClientRect()
+        if (glyph === undefined) throw new Error('sidebar action has no glyph')
+        let left = 0
+        let right = window.innerWidth
+        let top = 0
+        let bottom = window.innerHeight
+        for (let ancestor = button.parentElement; ancestor !== null; ancestor = ancestor.parentElement) {
+          const style = getComputedStyle(ancestor)
+          const rect = ancestor.getBoundingClientRect()
+          if (style.overflowX !== 'visible') {
+            left = Math.max(left, rect.left)
+            right = Math.min(right, rect.right)
+          }
+          if (style.overflowY !== 'visible') {
+            top = Math.max(top, rect.top)
+            bottom = Math.min(bottom, rect.bottom)
+          }
+        }
+        return {
+          width: bounds.width, height: bounds.height,
+          glyphWidth: glyph.width, glyphHeight: glyph.height,
+          clipped: bounds.left < left || bounds.right > right || bounds.top < top || bounds.bottom > bottom
+            || glyph.left < left || glyph.right > right || glyph.top < top || glyph.bottom > bottom,
+          reachable: button.contains(document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)),
+          y: bounds.y,
+        }
+      })
+    try {
+      await compact.goto(scaffold.baseUrl, { waitUntil: 'load' })
+      await compact.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+      await compact.getByText('主题校验任务', { exact: true }).locator('..').locator('..').click()
+      await compact.getByRole('combobox', { name: '项目' }).waitFor({ timeout: 10_000 })
+      await compact.getByRole('button', { name: '收起侧边栏', exact: true }).click()
+      const rail = compact.locator('[data-sidebar-collapsed="true"] [class*="_root"][class*="_collapsed"]')
+      await compact.getByRole('button', { name: '打开侧边栏', exact: true }).waitFor()
+      const initialHeight = await rail.evaluate(element => element.getBoundingClientRect().height)
+      // Keep the actual overlay clearance, then reproduce the user's short
+      // available column through viewport geometry rather than injected CSS.
+      await compact.setViewportSize({ width: 1200, height: Math.round(600 + 199 - initialHeight) })
+      await expect.poll(() => rail.evaluate(element => Math.round(element.getBoundingClientRect().height))).toBe(199)
+      const settings = compact.getByRole('button', { name: '设置', exact: true })
+      const pinnedY = (await controlGeometry('设置')).y
+      await settings.click()
+      await compact.getByRole('dialog', { name: '设置' }).waitFor()
+      await compact.keyboard.press('Escape')
+
+      const add = compact.getByRole('button', { name: '添加工作区', exact: true })
+      await add.scrollIntoViewIfNeeded()
+      await expect.poll(() => controlGeometry('添加工作区')).toMatchObject({
+        width: 36, height: 36, glyphWidth: 18, glyphHeight: 18, clipped: false, reachable: true,
+      })
+      expect((await controlGeometry('设置')).y).toBe(pinnedY)
+      await add.click()
+      await compact.getByRole('dialog', { name: '选择工作区目录' }).waitFor({ timeout: 10_000 })
+      await compact.keyboard.press('Escape')
+
+      const search = compact.getByRole('button', { name: '搜索会话', exact: true })
+      await search.focus()
+      await search.scrollIntoViewIfNeeded()
+      await expect.poll(() => controlGeometry('搜索会话')).toMatchObject({
+        width: 36, height: 36, glyphWidth: 18, glyphHeight: 18, clipped: false, reachable: true,
+      })
+      const footer = await controlGeometry('设置')
+      expect(footer.y).toBe(pinnedY)
+      expect(footer.reachable).toBe(true)
+      await search.click()
+      await compact.getByRole('button', { name: '收起侧边栏', exact: true }).waitFor()
+      const input = compact.getByPlaceholder('搜索会话…', { exact: true })
+      await input.waitFor()
+      await expect.poll(() => input.evaluate(element => element === document.activeElement)).toBe(true)
+      await input.fill('compact-rail-missing-session')
+      await compact.getByText('无匹配会话', { exact: true }).waitFor({ timeout: 10_000 })
+      expect(compactTripwire.pageErrors).toEqual([])
+      expect(compactTripwire.warnings).toEqual([])
+    } finally {
+      await compact.close()
+    }
+  }, 60_000)
+
   it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
     expect(tripwire.warnings).toEqual([])
     await assertFixtureInventory(SNAPSHOT_DIR, ['dialog.expected.md', 'plugins.expected.md'])
