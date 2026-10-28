@@ -45,6 +45,12 @@
   overflow-y: auto;
 }
 
+.root.collapsed.compact {
+  --dsh-sidebar-rail-gap: 0px;
+  --dsh-sidebar-settings-margin: 0px;
+  padding-top: 6px;
+}
+
 /* Scrollbars in the column are a pointer affordance: the shell adds this
    class whenever the pointer is not inside (SidebarRoot.tsx owns the linger),
    and rebinding ui-theme's indirection pair to `transparent` takes the thumb
@@ -119,7 +125,7 @@
 .collapsed .logoRow {
   height: 36px;
   padding: 0;
-  margin-bottom: 12px;
+  margin-bottom: var(--dsh-sidebar-rail-gap, 12px);
   justify-content: flex-start;
 }
 
@@ -217,7 +223,7 @@
   width: 36px;
   height: 36px;
   padding: 0;
-  margin: 0 0 12px;
+  margin: 0 0 var(--dsh-sidebar-rail-gap, 12px);
   gap: 0;
   border-color: transparent;
   background: transparent;

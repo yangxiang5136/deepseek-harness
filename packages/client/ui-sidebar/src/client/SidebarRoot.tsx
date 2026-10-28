@@ -36,6 +36,9 @@ const COLLAPSE_SETTLE_MS = 150
  */
 const SCROLLBAR_LINGER_MS = 2000
 
+/** Rail height below which spacing contracts while control boxes stay 36px. */
+const COMPACT_RAIL_HEIGHT_PX = 270
+
 /**
  * Render the sidebar column shell.
  * @param props - composed slot props (runtime share + injected callbacks, contract/slots.ts).
@@ -75,6 +78,18 @@ export function SidebarRoot({
   // leaves. A pointer that returns within that window cancels the pending
   // hide rather than restarting from a hidden bar.
   const column = useRef<HTMLDivElement>(null)
+  const [compact, setCompact] = useState(false)
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return
+    const element = column.current as HTMLDivElement
+    const measure = (): void => {
+      setCompact(element.getBoundingClientRect().height <= COMPACT_RAIL_HEIGHT_PX)
+    }
+    const observer = new ResizeObserver(measure)
+    measure()
+    observer.observe(element)
+    return () => { observer.disconnect() }
+  }, [])
   const [pointerInside, setPointerInside] = useState(false)
   const lingerTimer = useRef<number | undefined>(undefined)
   const armLinger = (): void => {
@@ -118,7 +133,7 @@ export function SidebarRoot({
       ref={column}
       className={clsx(
         css.root, !wide && css.collapsed, !wide && everWide.current && css.railIn,
-        collapsed && wide && css.fading, !pointerInside && css.quietBars,
+        collapsed && wide && css.fading, !pointerInside && css.quietBars, compact && css.compact,
       )}
       style={wide ? { width: collapsed ? lastWideWidth.current : width } : undefined}
       onPointerEnter={() => {

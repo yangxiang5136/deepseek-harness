@@ -658,6 +658,11 @@ describe('web e2e: settings modal and General preferences', () => {
       // available column through viewport geometry rather than injected CSS.
       await compact.setViewportSize({ width: 1200, height: Math.round(600 + 199 - initialHeight) })
       await expect.poll(() => rail.evaluate(element => Math.round(element.getBoundingClientRect().height))).toBe(199)
+      for (const name of ['添加工作区', '搜索会话', '设置']) {
+        await expect.poll(() => controlGeometry(name)).toMatchObject({
+          width: 36, height: 36, glyphWidth: 18, glyphHeight: 18, clipped: false, reachable: true,
+        })
+      }
       const settings = compact.getByRole('button', { name: '设置', exact: true })
       const pinnedY = (await controlGeometry('设置')).y
       await settings.click()

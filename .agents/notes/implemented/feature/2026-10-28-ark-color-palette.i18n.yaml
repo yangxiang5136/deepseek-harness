@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-28-ark-color-palette.md
-2026-10-28-ark-color-palette.md: 608e6a6ece385e0c1f2685dbb1d58c398358e5fd
-2026-10-28-ark-color-palette.zh.md: 288d4cd746e1b9c77019b85f1af87fd2a2ffcc1c
+2026-10-28-ark-color-palette.md: ceb20a0088e271787c8c3b9650ac11957090764e
+2026-10-28-ark-color-palette.zh.md: c08a3ecee50b007987cd918a5b02458dbabdcaf7
