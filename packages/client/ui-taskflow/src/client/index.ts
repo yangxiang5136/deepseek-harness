@@ -8,13 +8,14 @@
  * itself is pure client code over the raw JSONL.
  */
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
-import type { TaskflowSealRequest, TaskflowTodoFile } from '@deepseek-ai/dsh-api-remotes/client'
+import type { TaskflowMainline, TaskflowSealRequest, TaskflowTodoFile } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the ui-layout SlotMap merge (the shell.overlay list slot).
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import { REFRESH_MS } from './fold.ts'
 import { createTaskflowLedger } from './ledger.ts'
 import { createReviewPlans } from './reviewPlans.ts'
+import { createMainlines } from './mainlines.ts'
 import type { TaskFlowFace, TaskflowSealOutcome } from './face.ts'
 import { TaskFlowBar } from './TaskFlowBar.tsx'
 
@@ -46,16 +47,24 @@ export function apply(ctx: ClientContext): void {
     return answered.value
   })
 
+  const mainlines = createMainlines(async () => {
+    const answered = await ctx.remote.taskflow.mainlines()
+    if (!answered.ok) throw new Error(`${answered.error.code}: ${answered.error.message}`)
+    return answered.value
+  })
+
   ctx.effect(() => {
-    const timer = setInterval(() => { ledger.refresh(); reviewPlans.refresh() }, REFRESH_MS)
+    const timer = setInterval(() => { ledger.refresh(); reviewPlans.refresh(); mainlines.refresh() }, REFRESH_MS)
     return () => { clearInterval(timer) }
   }, 'ui-taskflow: ledger poll')
 
   ctx.on('connection/reset', () => {
     ledger.reset()
     reviewPlans.reset()
+    mainlines.reset()
     ledger.refresh()
     reviewPlans.refresh()
+    mainlines.refresh()
   })
 
   const seal = async (request: TaskflowSealRequest): Promise<TaskflowSealOutcome> => {
@@ -75,13 +84,22 @@ export function apply(ctx: ClientContext): void {
     return answered.value.files
   }
 
+  const setMainlines = async (project: string, list: TaskflowMainline[]): Promise<string | null> => {
+    const answered = await ctx.remote.taskflow.setMainlines({ project, mainlines: list })
+    if (!answered.ok) return `${answered.error.code}: ${answered.error.message}`
+    if (!answered.value.saved || answered.value.mainlines === null) return answered.value.reason ?? '没有保存'
+    mainlines.accept(answered.value.mainlines)
+    return null
+  }
+
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
     id: 'taskflow-bar',
     order: 100,
-    inject: (): TaskFlowFace => ({ hooks: { ledger, reviewPlans }, seal, todos }),
+    inject: (): TaskFlowFace => ({ hooks: { ledger, reviewPlans, mainlines }, seal, todos, setMainlines }),
   }, TaskFlowBar))
 
   ledger.refresh()
   reviewPlans.refresh()
+  mainlines.refresh()
 }

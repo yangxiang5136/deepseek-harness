@@ -1,0 +1,475 @@
+/*
+ * Two-pane main area: projects on the left, one project on the right. Tokens
+ * come from the banner (TaskFlowBar.module.css --tf-*). The first glance is
+ * the pinned mainlines and one row of counts; everything else unfolds.
+ */
+.two {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  max-height: min(46vh, 420px);
+  border-top: 1px solid var(--tf-line);
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px;
+  overflow-y: auto;
+  border-right: 1px solid var(--tf-line);
+}
+
+.proj {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 8px;
+  align-items: center;
+  padding: 6px 8px;
+  font: var(--tf-font-item);
+  color: var(--tf-ink);
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: var(--tf-radius);
+}
+
+.proj:hover,
+.proj[aria-pressed='true'] {
+  background: var(--tf-main-soft);
+}
+
+.projName {
+  grid-column: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projMain,
+.projNone {
+  grid-column: 1;
+  overflow: hidden;
+  font: var(--tf-font-hint);
+  color: var(--tf-main);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projNone {
+  color: var(--tf-quiet);
+}
+
+.projCount {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  padding: 0 7px;
+  font: var(--tf-font-hint);
+  font-weight: var(--tf-fw-accent);
+  color: var(--tf-wait-ink);
+  white-space: nowrap;
+  background: var(--tf-wait-soft);
+  border: 1px solid var(--tf-wait-edge);
+  border-radius: 999px;
+}
+
+.fold,
+.allBtn,
+.moreBtn {
+  padding: 6px 8px;
+  font: var(--tf-font-meta);
+  color: var(--tf-ink-2);
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: var(--tf-radius);
+}
+
+.fold:hover,
+.allBtn:hover,
+.moreBtn:hover {
+  background: var(--tf-main-soft);
+}
+
+.allBtn {
+  margin-top: auto;
+  color: var(--tf-ink);
+  border-top: 1px solid var(--tf-line);
+  border-radius: 0;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 14px;
+  overflow-y: auto;
+}
+
+.paneHead,
+.chips,
+.lineTop,
+.edit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.paneName {
+  font: var(--tf-font-lead);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.label {
+  font: var(--tf-font-hint);
+  color: var(--tf-quiet);
+  letter-spacing: 0.04em;
+}
+
+.muted {
+  font: var(--tf-font-hint);
+  color: var(--tf-quiet);
+}
+
+.error {
+  font: var(--tf-font-meta);
+  color: var(--dsw-alias-state-error-primary, #d14343);
+}
+
+.line,
+.lineOpen {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--tf-line);
+  border-radius: var(--tf-radius);
+}
+
+.lineOpen {
+  border-color: var(--tf-main-edge);
+}
+
+.lineHead {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 10px;
+  font: var(--tf-font-meta);
+  color: var(--tf-ink);
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: var(--tf-radius);
+}
+
+.lineHead:hover {
+  background: var(--tf-main-soft);
+}
+
+.lineName {
+  font: var(--tf-font-lead);
+  color: var(--tf-main);
+}
+
+.status,
+.statusWait {
+  font: var(--tf-font-hint);
+  color: var(--tf-quiet);
+  white-space: nowrap;
+}
+
+.statusWait {
+  padding: 0 7px;
+  font-weight: var(--tf-fw-accent);
+  color: var(--tf-wait-ink);
+  background: var(--tf-wait-soft);
+  border: 1px solid var(--tf-wait-edge);
+  border-radius: 999px;
+}
+
+.track {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.heat {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  align-items: flex-end;
+  height: 14px;
+}
+
+.heat i {
+  display: block;
+  width: 6px;
+  background: var(--tf-main);
+  border-radius: 1px;
+}
+
+.heat .heatZero {
+  background: var(--tf-edge);
+}
+
+.now,
+.nowWait {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-left: 6px;
+  box-sizing: border-box;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  border: 2.5px solid var(--tf-main);
+  border-radius: 50%;
+}
+
+.nowWait {
+  background: var(--tf-wait-edge);
+  border-color: var(--tf-wait);
+}
+
+.dash {
+  flex: 0 1 110px;
+  min-width: 32px;
+  height: 0;
+  margin-left: 4px;
+  border-top: 2px dashed var(--tf-main);
+}
+
+.tip {
+  flex: none;
+  width: 0;
+  height: 0;
+  margin-right: 8px;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid var(--tf-main);
+}
+
+.dir,
+.dirNone {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dirNone {
+  color: var(--tf-quiet);
+}
+
+.by {
+  flex: none;
+  padding: 0 6px;
+  margin-left: 8px;
+  font: var(--tf-font-hint);
+  color: var(--tf-quiet);
+  border: 1px solid var(--tf-line);
+  border-radius: 999px;
+}
+
+.lineBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--tf-line);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.step dt {
+  font: var(--tf-font-hint);
+  color: var(--tf-quiet);
+  white-space: nowrap;
+}
+
+.step dd {
+  margin: 0;
+}
+
+.input,
+.pin {
+  height: var(--tf-ctl-h);
+  padding: 0 8px;
+  font: var(--tf-font-meta);
+  color: var(--tf-ink);
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  border: 1px solid var(--tf-line);
+  border-radius: var(--tf-radius);
+}
+
+.input {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.pin {
+  align-self: flex-start;
+  max-width: 100%;
+  color: var(--tf-ink-2);
+  cursor: pointer;
+}
+
+.btn {
+  flex: none;
+  height: var(--tf-ctl-h);
+  padding: 0 9px;
+  font: var(--tf-font-ctrl);
+  color: var(--tf-ink-2);
+  white-space: nowrap;
+  cursor: pointer;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  border: 1px solid var(--tf-line);
+  border-radius: var(--tf-radius);
+}
+
+.btn:hover:not(:disabled) {
+  color: var(--tf-main);
+  border-color: var(--tf-main-edge);
+}
+
+.btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.chip,
+.chipWait {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  height: var(--tf-ctl-h);
+  padding: 0 10px;
+  font: var(--tf-font-ctrl);
+  color: var(--tf-ink-2);
+  cursor: pointer;
+  background: none;
+  border: 1px solid var(--tf-line);
+  border-radius: 999px;
+}
+
+.chip b,
+.chipWait b {
+  font-weight: var(--tf-fw-accent);
+  color: var(--tf-ink);
+}
+
+.chipWait {
+  color: var(--tf-wait-ink);
+  background: var(--tf-wait-soft);
+  border-color: var(--tf-wait-edge);
+}
+
+.chipWait b {
+  color: var(--tf-wait-ink);
+}
+
+.chip[aria-expanded='true'],
+.chipWait[aria-expanded='true'] {
+  border-color: var(--tf-main);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1.1fr) minmax(0, 1.5fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 30px;
+  padding: 2px 4px;
+  border-top: 1px solid var(--tf-line);
+}
+
+.rows > .row:first-child,
+.rows > .group:first-child > .row {
+  border-top: 0;
+}
+
+.kind,
+.kindDecision {
+  font: var(--tf-font-hint);
+  color: var(--tf-quiet);
+  white-space: nowrap;
+}
+
+.kindDecision {
+  font-weight: var(--tf-fw-accent);
+  color: var(--tf-main);
+}
+
+.rowTitle {
+  overflow: hidden;
+  font: var(--tf-font-item);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.times {
+  font: var(--tf-font-hint);
+  color: var(--tf-quiet);
+}
+
+.rowNote {
+  overflow: hidden;
+  color: var(--tf-ink-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowAge {
+  font: var(--tf-font-hint);
+  color: var(--tf-quiet);
+  white-space: nowrap;
+}
+
+.rowActs {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.nested {
+  padding-left: 22px;
+  border-top: 1px solid var(--tf-line);
+}
+
+.proj:focus-visible,
+.fold:focus-visible,
+.allBtn:focus-visible,
+.moreBtn:focus-visible,
+.lineHead:focus-visible,
+.btn:focus-visible,
+.chip:focus-visible,
+.chipWait:focus-visible,
+.input:focus-visible,
+.pin:focus-visible {
+  outline: 2px solid var(--tf-main);
+  outline-offset: 1px;
+}

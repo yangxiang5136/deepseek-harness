@@ -114,3 +114,36 @@ export interface TaskflowReviewPlanSnapshot {
   /** Whitelisted watcher health, or null when its status file is missing. */
   observer: TaskflowReviewObserver | null
 }
+
+/** One pinned mainline: a ledger task name and, optionally, where it is heading. */
+export interface TaskflowMainline {
+  /** Exact ledger task name the human pinned. */
+  task: string
+  /** One-line direction; present together with `directionBy`. */
+  direction?: string
+  /** Who wrote `direction`: an AI draft, or the human (which an AI must not overwrite). */
+  directionBy?: 'ai' | 'human'
+}
+
+/** The pinned mainlines of every project, keyed by display project. */
+export interface TaskflowMainlines {
+  schemaVersion: 1
+  /** At most three mainlines per project, in the human's order. */
+  projects: Record<string, TaskflowMainline[]>
+}
+
+/** Replace one project's pinned mainlines; an empty list unpins the project. */
+export interface TaskflowMainlinesRequest {
+  /** Display project (aliases folded, e.g. ARK). */
+  project: string
+  /** The complete new list for that project. */
+  mainlines: TaskflowMainline[]
+}
+
+/** Outcome of a pin write; never throws for a malformed request. */
+export interface TaskflowMainlinesResult {
+  saved: boolean
+  reason: 'invalid-request' | null
+  /** The document after the write; null when nothing was written. */
+  mainlines: TaskflowMainlines | null
+}

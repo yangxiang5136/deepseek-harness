@@ -25,8 +25,12 @@ import {
 import { formatSealLine, isNeedsYouOpenAt, parseLedger } from './seal.ts'
 import { readReviewPlanFiles, readReviewWatchStatus } from './review-plans.ts'
 import { codexConfirmationRef } from './confirmation.ts'
+import { readMainlines, writeMainlines } from './mainlines.ts'
 import type {
   TaskflowLedgerSnapshot,
+  TaskflowMainlines,
+  TaskflowMainlinesRequest,
+  TaskflowMainlinesResult,
   TaskflowPhaseConfirmationRequest,
   TaskflowReviewPlanSnapshot,
   TaskflowSealRequest,
@@ -97,6 +101,14 @@ export function reviewWatchStatusPath(): string {
     ?? join(homedir(), 'my-memories', 'attention', 'review-watch-status.json')
 }
 
+/**
+ * The human's pinned mainlines, beside the ledger on the bus.
+ * @returns Absolute path of the shared pins file.
+ */
+export function mainlinesPath(): string {
+  return process.env.DSH_TASKFLOW_MAINLINES ?? join(attentionDirectory(), 'mainlines.json')
+}
+
 async function readLedger(): Promise<TaskflowLedgerSnapshot> {
   const override = process.env.DSH_TASKFLOW_LEDGER
   return override === undefined
@@ -140,6 +152,25 @@ export class TaskflowLedgerGateway extends TypertRemoteService {
   async reviewPlans(): Promise<TaskflowReviewPlanSnapshot> {
     const observer = await readReviewWatchStatus(reviewWatchStatusPath())
     return readReviewPlanFiles(reviewPlansDirectory(), observer)
+  }
+
+  /**
+   * Read the pinned mainlines shared by every browser and readable by any AI.
+   * @returns The validated pins; an absent file is the empty document.
+   */
+  @Remote('mainlines')
+  async mainlines(): Promise<TaskflowMainlines> {
+    return readMainlines(mainlinesPath())
+  }
+
+  /**
+   * Replace one project's pinned mainlines after an explicit board gesture.
+   * @param request - display project and its complete new list (at most three).
+   * @returns Business outcome with the document as written.
+   */
+  @Remote('setMainlines')
+  async setMainlines(request: TaskflowMainlinesRequest): Promise<TaskflowMainlinesResult> {
+    return writeMainlines(mainlinesPath(), request)
   }
 
   /**

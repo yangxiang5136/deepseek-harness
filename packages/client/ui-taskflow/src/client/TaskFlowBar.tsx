@@ -19,6 +19,8 @@ import { todosForProject } from './todo.ts'
 import { debtKey, useDeferredSeal } from './deferredSeal.ts'
 import { TitlePopover } from './TitlePopover.tsx'
 import { readView, writeView, type TaskflowView } from './viewState.ts'
+import { buildTiers } from './tiers.ts'
+import { TwoPane } from './TwoPane.tsx'
 import css from './TaskFlowBar.module.css'
 
 /** The CSS seam ui-layout's frame consumes for content avoidance (S4). */
@@ -71,9 +73,10 @@ function createMeasure(): TextMeasure {
  * NeedsYouTray.module.css keys its tighter grid height cap on that attribute
  * because the banner's class name is hashed in this module.
  */
-export function TaskFlowBar({ useLedger, useReviewPlans, seal, todos }: TaskFlowBarProps): ReactElement {
+export function TaskFlowBar({ useLedger, useReviewPlans, useMainlines, seal, todos, setMainlines }: TaskFlowBarProps): ReactElement {
   const ledger = useLedger(s => s)
   const reviewPlans = useReviewPlans(s => s)
+  const mainlines = useMainlines(s => s)
   const [view, setView] = useState(readView)
   const { collapsed, openProject } = view
   const [now, setNow] = useState(() => Date.now())
@@ -185,6 +188,14 @@ export function TaskFlowBar({ useLedger, useReviewPlans, seal, todos }: TaskFlow
     () => openProject === null ? null : buildProjectTree(ledger.events, model, openProject, pins[openProject], now),
     [openProject, ledger.events, model, pins, now],
   )
+
+  const tiers = useMemo(
+    () => buildTiers(ledger.events, model, mainlines.projects, now),
+    [ledger.events, model, mainlines.projects, now],
+  )
+  // Pin candidates: the tree's ranking (most active first) for that project.
+  const candidatesFor = (label: string): readonly string[] =>
+    buildProjectTree(ledger.events, model, label, undefined, now).candidates
 
   const openDebt = (debt: NeedsYouItem): void => {
     const project = displayProject(debt.project)
@@ -300,43 +311,60 @@ export function TaskFlowBar({ useLedger, useReviewPlans, seal, todos }: TaskFlow
           />
         </div>
       </div>
-      {tree !== null && (
-        <ProjectPanel
-          tree={tree}
-          events={ledger.events}
-          now={now}
-          todos={todoState}
-          onPin={(task) => {
-            const next = { ...pins, [tree.label]: task }
-            setPins(next)
-            writePins(next)
-          }}
-          cardTask={selectedDebt?.task ?? null}
-          selectedDebt={selectedDebt}
-          reviewState={reviewPlans}
-          reviewDebts={model.needsYou}
-          onCard={(task) => {
-            const debt = [tree.main, ...tree.branches].find(entry => entry?.task === task)?.debt
-            setSelectedDebtKey(debt === undefined || debt === null ? null : debtKey(debt))
-          }}
-          onSeal={(debt, note) => { sealer.queue(debt, note) }}
-          onClose={() => {
-            updateView({ openProject: null })
-            setSelectedDebtKey(null)
-          }}
-        />
-      )}
-      <NeedsYouTray
-        debts={model.needsYou}
-        sealer={sealer}
+      <TwoPane
+        tiers={tiers}
         openProject={openProject}
-        onToggleProject={(project) => {
-          updateView({ openProject: openProject === project ? null : project })
+        onOpenProject={(project) => {
+          updateView({ openProject: project })
           setSelectedDebtKey(null)
         }}
-        openTask={selectedDebt?.task ?? null}
-        openDebtKey={selectedDebtKey}
-        onOpenDebt={openDebt}
+        events={ledger.events}
+        now={now}
+        sealer={sealer}
+        candidates={candidatesFor}
+        onSetMainlines={setMainlines}
+        total={model.needsYou.length}
+        {...(mainlines.error === undefined ? {} : { pinsError: mainlines.error })}
+        legacy={() => tree !== null && (
+          <ProjectPanel
+            tree={tree}
+            events={ledger.events}
+            now={now}
+            todos={todoState}
+            onPin={(task) => {
+              const next = { ...pins, [tree.label]: task }
+              setPins(next)
+              writePins(next)
+            }}
+            cardTask={selectedDebt?.task ?? null}
+            selectedDebt={selectedDebt}
+            reviewState={reviewPlans}
+            reviewDebts={model.needsYou}
+            onCard={(task) => {
+              const debt = [tree.main, ...tree.branches].find(entry => entry?.task === task)?.debt
+              setSelectedDebtKey(debt === undefined || debt === null ? null : debtKey(debt))
+            }}
+            onSeal={(debt, note) => { sealer.queue(debt, note) }}
+            onClose={() => {
+              updateView({ openProject: null })
+              setSelectedDebtKey(null)
+            }}
+          />
+        )}
+        all={(
+          <NeedsYouTray
+            debts={model.needsYou}
+            sealer={sealer}
+            openProject={openProject}
+            onToggleProject={(project) => {
+              updateView({ openProject: openProject === project ? null : project })
+              setSelectedDebtKey(null)
+            }}
+            openTask={selectedDebt?.task ?? null}
+            openDebtKey={selectedDebtKey}
+            onOpenDebt={openDebt}
+          />
+        )}
       />
     </div>
   )
