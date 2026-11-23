@@ -14,7 +14,7 @@
  * two of size, weight and ink. TypeScript mirror: typeScale.ts TF_TYPE (the
  * lock test in fold.client.spec.ts keeps both sides equal).
  *   lead  15/20 600 — the one answer per surface (current task, 待你收口,
- *                     the lean verdict, the mainline, a card's status)
+ *                     the mainline, a card's status)
  *   item  13/18 500 — names of things (debt titles, chips, branches)
  *   meta  12/18 400 — supporting data (durations, badges, card facts)
  *   ctrl  12/16 500 — verbs and chrome labels (buttons, section labels)
@@ -62,7 +62,7 @@
   pointer-events: auto;
   background: var(--dsw-alias-bg-layer-1, #fff);
   border-top: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
-  box-shadow: 0 -2px 10px rgb(15 23 42 / 8%);
+  box-shadow: var(--dsw-shadow-taskflow-banner);
   animation: rise 0.18s ease-out;
 }
 
@@ -98,6 +98,23 @@
   letter-spacing: 0.03em;
   cursor: pointer;
   user-select: none;
+}
+
+.projects {
+  max-width: 180px;
+  height: var(--tf-ctl-h);
+  padding: 0 6px;
+  font: var(--tf-font-ctrl);
+  color: var(--tf-ink-2);
+  cursor: pointer;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  border: 1px solid var(--tf-line);
+  border-radius: var(--tf-radius);
+}
+
+.projects:focus-visible {
+  outline: 2px solid var(--tf-main);
+  outline-offset: 1px;
 }
 
 /* 无心跳 N beside the title: amber like the other things waiting on Sean; opens

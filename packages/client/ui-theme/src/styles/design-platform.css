@@ -2,6 +2,14 @@
    font-weight: 500 in this UI — non-variable webfonts snap intermediate
    weights unpredictably across platforms. */
 body {
+  --dsw-alias-taskflow-history-label: #374151;
+  --dsw-alias-taskflow-history-border: rgb(255 255 255 / 70%);
+  --dsw-alias-taskflow-history-aggregate-label: #64748b;
+  --dsw-alias-taskflow-history-aggregate-bg: #e8ecf2;
+  --dsw-alias-taskflow-history-packed-label: #3b4a63;
+  --dsw-alias-taskflow-history-packed-bg: linear-gradient(180deg, #eaf0f8, #dce6f2);
+  --dsw-alias-taskflow-history-continuation: #64748b;
+  --dsw-shadow-taskflow-banner: 0 -2px 10px rgb(15 23 42 / 8%);
   --dsw-static-amber-100: rgb(254, 245, 231);
   --dsw-static-amber-400: rgb(247, 173, 49);
   --dsw-static-amber-500: rgb(245, 158, 11);

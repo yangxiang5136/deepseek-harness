@@ -51,6 +51,8 @@ export interface NeedsYouTrayProps {
   onToggleProject: (project: string) => void
   /** Task whose card is open in that project's tree, if any (its row shows pressed). */
   openTask: string | null
+  /** Exact selected debt key, preventing same-task rows sharing focus. */
+  openDebtKey?: string | null
   /** Open a debt's card: its project's tree unfolds with the card open. */
   onOpenDebt: (debt: NeedsYouItem) => void
 }
@@ -67,7 +69,7 @@ export interface NeedsYouTrayProps {
  * @returns The tray element.
  */
 export function NeedsYouTray({
-  debts, sealer, openProject, onToggleProject, openTask, onOpenDebt,
+  debts, sealer, openProject, onToggleProject, openTask, openDebtKey, onOpenDebt,
 }: NeedsYouTrayProps): ReactElement {
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [openProjects, setOpenProjects] = useState<Record<string, boolean>>({})
@@ -119,7 +121,8 @@ export function NeedsYouTray({
                     {rows.map((debt) => {
                       const key = debtKey(debt)
                       const state = sealer.states[key]
-                      const focused = openProject === displayProject(debt.project) && openTask === debt.task
+                      const focused = openProject === displayProject(debt.project)
+                        && (openDebtKey === undefined ? openTask === debt.task : openDebtKey === key)
                       const isDecision = debt.kind === 'decision'
                       return (
                         <div key={key} className={css.row}>
@@ -141,6 +144,7 @@ export function NeedsYouTray({
                               type="button"
                               className={css.ok}
                               aria-label={`收口 ${debt.task}`}
+                              title="本阶段结束，交史官复盘；原始材料与续接入口保留"
                               onClick={() => { sealer.queue(debt) }}
                             >
                               ✓

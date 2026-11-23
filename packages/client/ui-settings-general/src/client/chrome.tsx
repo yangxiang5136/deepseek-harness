@@ -15,7 +15,7 @@ export type TriggerContentProps = PropsRuntime<'settings.trigger'> & PropsLocale
 export type HeaderContentProps = PropsRuntime<'settings.header'> & PropsLocale<'settings'>
 
 /**
- * Render the trigger row content (icon; label only in the wide column).
+ * Render the trigger icon and its label, visually hidden in the rail.
  * @param props - composed slot props.
  * @returns the trigger content fragment.
  */
@@ -23,7 +23,7 @@ export function TriggerContent({ wide, t }: TriggerContentProps) {
   return (
     <>
       {wide ? <IconSettingsOutline16 size={16} /> : <IconSettingsOutline14 size={18} />}
-      {wide && <span className={css.triggerLabel}>{t('trigger')}</span>}
+      <span className={wide ? css.triggerLabel : css.railLabel}>{t('trigger')}</span>
     </>
   )
 }

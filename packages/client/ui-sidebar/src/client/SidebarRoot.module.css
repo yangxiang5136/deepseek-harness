@@ -26,7 +26,29 @@
    rail (10px side padding), 12px vertical rhythm, 18px from the rail top to
    the whale's box (24px to the 24-wide whale glyph itself). */
 .root.collapsed {
-  padding: 18px 10px 6px;
+  --dsh-sidebar-inline-padding: 10px;
+  padding: 18px var(--dsh-sidebar-inline-padding) 6px;
+}
+
+.mainArea {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Keep the footer fixed while full-size rail controls scroll in short views.
+   The trailing inset leaves room for a space-consuming themed scrollbar. */
+.collapsed .mainArea {
+  margin-right: calc(-1 * var(--dsh-sidebar-inline-padding));
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.root.collapsed.compact {
+  --dsh-sidebar-rail-gap: 0px;
+  --dsh-sidebar-settings-margin: 0px;
+  padding-top: 6px;
 }
 
 /* Scrollbars in the column are a pointer affordance: the shell adds this
@@ -103,7 +125,7 @@
 .collapsed .logoRow {
   height: 36px;
   padding: 0;
-  margin-bottom: 12px;
+  margin-bottom: var(--dsh-sidebar-rail-gap, 12px);
   justify-content: flex-start;
 }
 
@@ -201,7 +223,7 @@
   width: 36px;
   height: 36px;
   padding: 0;
-  margin: 0 0 12px;
+  margin: 0 0 var(--dsh-sidebar-rail-gap, 12px);
   gap: 0;
   border-color: transparent;
   background: transparent;
@@ -236,9 +258,11 @@
 }
 
 .collapsed .regionArea {
+  flex: none;
   margin-left: 0;
   margin-right: 0;
   padding-left: 0;
+  overflow: visible;
 }
 
 /* Footer seats: additive actions stack above Settings. Each occupant owns its

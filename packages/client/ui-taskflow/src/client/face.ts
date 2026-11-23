@@ -2,6 +2,7 @@
 
 import type { TaskflowSealRequest, TaskflowTodoFile } from '@deepseek-ai/dsh-api-remotes/client'
 import type { TaskflowLedgerSource } from './ledger.ts'
+import type { ReviewPlansSource } from './reviewPlans.ts'
 
 /** Business outcome of a seal click; wire and host refusals both land here. */
 export interface TaskflowSealOutcome {
@@ -16,6 +17,8 @@ export interface TaskFlowFace {
   hooks: {
     /** The polled ledger source (bound to `useLedger` by the renderer). */
     ledger: TaskflowLedgerSource
+    /** Polled plan metadata, independent of ledger outcomes. */
+    reviewPlans: ReviewPlansSource
   }
   /**
    * Seal (收口) one pinned open debt through the host gate.

@@ -31,10 +31,11 @@ async function bench(isLoopback = true) {
   const locale = new LocaleRuntime(ctx)
   ctx.provide('locale', locale)
   let preference = 'system'
+  let palette = 'default'
   const namespace = () => ({
     ns: THEME_SETTINGS_NAMESPACE,
     schema: ThemeSettingsSchema.toJSON(),
-    value: { preference },
+    value: { preference, palette },
     applies: 'live' as const,
     secrets: [],
     revision: 0,
@@ -46,8 +47,10 @@ async function bench(isLoopback = true) {
       value: { writable: true, hasDocument: true, namespaces: [namespace()] },
     },
   }))
-  const mutate = vi.fn((request: { ops: { value: string }[] }) => {
-    preference = request.ops[0]!.value
+  const mutate = vi.fn((request: { ops: { path: string[]; value: string }[] }) => {
+    const op = request.ops[0]!
+    if (op.path[0] === 'palette') palette = op.value
+    else preference = op.value
     return Promise.resolve({
       rpcId: 'theme-mutate' as never,
       result: { ok: true as const, value: namespace() },
@@ -60,6 +63,7 @@ async function bench(isLoopback = true) {
   return {
     ctx, slots: ctx.get('slots') as SlotRegistry, locale, describe, mutate,
     setHostPreference: (next: string) => { preference = next },
+    setHostPalette: (next: string) => { palette = next },
   }
 }
 
@@ -148,6 +152,36 @@ describe('ui-theme apply', () => {
     remoteTheme.setTheme('dark')
     await Promise.resolve()
     expect(remote.describe).not.toHaveBeenCalled()
+    expect(remote.mutate).not.toHaveBeenCalled()
+  })
+
+  it('loads, persists and refreshes the palette without changing the scheme', async () => {
+    const b = await bench()
+    b.setHostPreference('dark')
+    b.setHostPalette('ark')
+    declareItems(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const theme = b.ctx.get('theme') as ThemeRuntime
+    await vi.waitFor(() => { expect(theme.getTheme()).toMatchObject({ preference: 'dark', palette: 'ark' }) })
+    const { instance, face } = faceOf(b.slots)
+    expect(instance.getSnapshot().palette).toBe('ark')
+    face.setPalette('default')
+    await vi.waitFor(() => { expect(b.mutate).toHaveBeenCalledOnce() })
+    expect(b.mutate).toHaveBeenCalledWith(expect.objectContaining({
+      ops: [{ op: 'set', path: ['palette'], value: 'default' }],
+    }))
+    expect(theme.getTheme()).toMatchObject({ preference: 'dark', palette: 'default' })
+    expect(instance.getSnapshot().palette).toBe('default')
+    b.setHostPalette('ark')
+    b.ctx.emit('connection/reset')
+    await vi.waitFor(() => { expect(theme.getTheme().palette).toBe('ark') })
+
+    const remote = await bench(false)
+    await remote.ctx.plugin({ inject: [...inject], apply }).await()
+    const remoteTheme = remote.ctx.get('theme') as ThemeRuntime
+    remoteTheme.setPalette('ark')
+    await Promise.resolve()
+    expect(remoteTheme.getTheme().palette).toBe('ark')
     expect(remote.mutate).not.toHaveBeenCalled()
   })
 

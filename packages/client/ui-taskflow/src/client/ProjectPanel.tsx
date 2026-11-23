@@ -1,9 +1,12 @@
 import { useState, type KeyboardEvent, type ReactElement } from 'react'
 import { DebtCard } from './DebtCard.tsx'
-import { estTextW, fmtDur, type AttentionEvent, type NeedsYouItem } from './fold.ts'
+import { debtKey } from './deferredSeal.ts'
+import { displayProject, estTextW, fmtDur, type AttentionEvent, type NeedsYouItem } from './fold.ts'
 import { fmtAge } from './NeedsYouTray.tsx'
 import { TREE_WINDOW_MS, type ProjectTree, type TreeTask } from './projectTree.ts'
 import type { TaskflowTodoItem } from './todo.ts'
+import type { ReviewPlansState } from './reviewPlans.ts'
+import { ReviewPlan } from './ReviewOrderPanel.tsx'
 import { TF_TYPE, type TypeRole } from './typeScale.ts'
 import css from './ProjectPanel.module.css'
 
@@ -55,6 +58,12 @@ export interface ProjectPanelProps {
   onPin: (task: string) => void
   /** Task whose debt card is open (owned by the bar so the tray can open it). */
   cardTask: string | null
+  /** Exact tray selection; undefined retains task-tag selection. */
+  selectedDebt?: NeedsYouItem | null
+  /** Validated plan metadata and read health, independent of ledger outcomes. */
+  reviewState: ReviewPlansState
+  /** Every open review debt, including multiple reviews sharing a task name. */
+  reviewDebts: readonly NeedsYouItem[]
   onCard: (task: string | null) => void
   /** Queue a seal of an open debt with Sean's optional closing note. */
   onSeal: (debt: NeedsYouItem, note: string) => void
@@ -133,23 +142,18 @@ function edgeClass(task: TreeTask): string {
 }
 
 /**
- * The project tree panel (Branch Compass inside TaskFlow): a ratio line that
- * says whether the week went to the mainline or leaked into branches, the
- * mainline with every unresolved branch forking off where it began, and the
+ * The project tree panel: saved chat review order, the mainline with every
+ * unresolved branch forking off where it began, and the
  * project's todo list below. Settled branches only appear as a summary line;
  * an open debt's tag opens its card (seal with a note, continuation prompt).
  * @param props - tree, clock, todo read, pin and close verbs.
  * @returns The panel element.
  */
 export function ProjectPanel({
-  tree, events, now, todos, onPin, cardTask, onCard, onSeal, onClose,
+  tree, events, now, todos, onPin, cardTask, selectedDebt, reviewState, reviewDebts, onCard, onSeal, onClose,
 }: ProjectPanelProps): ReactElement {
   const [allRows, setAllRows] = useState(false)
   const [showSettled, setShowSettled] = useState(false)
-
-  const total = tree.mainDur + tree.branchDur
-  const branchShare = total === 0 ? 0 : Math.round((tree.branchDur / total) * 100)
-  const leaning = total > 0 && tree.branchDur > tree.mainDur
 
   const rows = allRows ? tree.branches : tree.branches.slice(0, PANEL_BRANCH_ROWS)
   const windowStart = now - TREE_WINDOW_MS
@@ -157,6 +161,7 @@ export function ProjectPanel({
   const step = slots.length > TIGHT_SLOTS ? TIGHT_STEP : STEP
   const xAt = (t: number): number => LABEL_W + 16 + Math.max(0, slots.indexOf(Math.max(t, windowStart))) * step
   const nowX = LABEL_W + 16 + Math.max(1, slots.length) * step + 12
+  const hasReviewPlan = reviewState.plans.some(plan => displayProject(plan.project) === tree.label)
   const todoItems = todos.status === 'ready' ? todos.items : []
   const width = nowX + TAG_W + 24
   const height = ROW0_Y + Math.max(0, rows.length - 1) * ROW_H + TAG_H / 2 + 8
@@ -167,7 +172,7 @@ export function ProjectPanel({
     ? { text: '近 7 天没动', cls: css.tagQuiet as string, textCls: css.tagText as string }
     : stateTag(tree.main, now)
   // The card follows the live fold: once Sean seals the debt it closes itself.
-  const cardDebt = [tree.main, ...tree.branches].find(t => t?.task === cardTask)?.debt ?? null
+  const cardDebt = selectedDebt === undefined ? [tree.main, ...tree.branches].find(t => t?.task === cardTask)?.debt ?? null : selectedDebt
   const toggleCard = (task: string): void => { onCard(cardTask === task ? null : task) }
 
   /** The hover-revealed 设为主线 chip at the end of a row's label. */
@@ -215,23 +220,14 @@ export function ProjectPanel({
     <section className={css.panel} aria-label={`${tree.label} 项目树`} onClick={(e) => { e.stopPropagation() }}>
       <div className={css.head}>
         <span className={css.name}>{tree.label}</span>
-        <span
-          className={css.meter}
-          role="img"
-          aria-label={`近 7 天 主线 ${fmtDur(tree.mainDur)} · 分支 ${fmtDur(tree.branchDur)}`}
-          title={`近 7 天 主线 ${fmtDur(tree.mainDur)} · 分支 ${fmtDur(tree.branchDur)}`}
-        >
-          <i className={css.meterMain} style={{ flexGrow: tree.mainDur }} />
-          <i className={css.meterBranch} style={{ flexGrow: tree.branchDur }} />
-        </span>
-        {total === 0
-          ? <span className={css.muted}>近 7 天没有活动</span>
-          : leaning
-            ? <span className={css.lean}>{`分支占 ${branchShare}%，重心偏到分支了`}</span>
-            : <span className={css.calm}>{`主线占 ${100 - branchShare}%`}</span>}
+        {tree.mainDur + tree.branchDur === 0 && <span className={css.muted}>近 7 天没有活动</span>}
         <span className={css.spacer} />
         <button type="button" className={css.btn} onClick={onClose}>收起</button>
       </div>
+
+      {hasReviewPlan && <ReviewPlan
+        project={tree.label} state={reviewState} events={events} debts={reviewDebts}
+      />}
 
       <div className={css.graph}>
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${tree.label} 主线与未了结分支`}>
@@ -269,7 +265,7 @@ export function ProjectPanel({
         <DebtCard
           // One instance per debt: a typed note must never carry over to the
           // next card and be sealed as feedback on the wrong task.
-          key={`${cardDebt.project}\u0000${cardDebt.task}\u0000${cardDebt.ts}`}
+          key={debtKey(cardDebt)}
           debt={cardDebt}
           label={tree.label}
           events={events}

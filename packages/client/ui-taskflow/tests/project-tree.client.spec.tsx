@@ -10,10 +10,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TaskflowTodoFile } from '@deepseek-ai/dsh-api-remotes/client'
 import { TaskFlowBar, type TaskFlowBarProps } from '../src/client/TaskFlowBar.tsx'
 import type { TaskFlowFace } from '../src/client/face.ts'
+import type { ReviewPlansState } from '../src/client/reviewPlans.ts'
+const useReviewPlans = (select: (state: ReviewPlansState) => unknown) => select({ plans: [], read: true, observer: null })
 import type { TaskflowLedgerState } from '../src/client/ledger.ts'
 import { buildModel, IDLE_PAUSE_MS, parseLedgerText } from '../src/client/fold.ts'
 import {
-  buildProjectTree, MAINLINE_PINS_KEY, readPins, TREE_WINDOW_MS, writePins,
+  buildProjectTree, listProjects, MAINLINE_PINS_KEY, readPins, TREE_WINDOW_MS, writePins,
 } from '../src/client/projectTree.ts'
 import { parseTodoItems, todosForProject, todoTitle } from '../src/client/todo.ts'
 import { PANEL_BRANCH_ROWS, PANEL_TODO_ROWS, ProjectPanel } from '../src/client/ProjectPanel.tsx'
@@ -144,6 +146,27 @@ describe('parked debts in the bar fold', () => {
   })
 })
 
+describe('project access independent of open review debts', () => {
+  it('includes current work, older debts and parks, todo-only projects and saved picks', () => {
+    const events = parseLedgerText([
+      ev('start', 5, '正在做', { project: 'machine' }),
+      ev('start', 10, '别名', { project: 'MSC_AI' }),
+      debt(9 * 24 * 60, '旧审阅', 'review', { project: 'TaskFlow' }),
+      debt(9 * 24 * 60, '旧停放', 'park', { project: 'life-admin' }),
+      ev('done', 9 * 24 * 60, '已归档', { project: 'old-project' }),
+      ev('start', -30, '未来记录', { project: 'future-project' }),
+    ].join('\n'))
+    const files = [
+      { name: 'job.md', text: '- [ ] 投递' },
+      { name: 'DME.md', text: '- [x] 完成' },
+      { name: 'unmapped.md', text: '- [ ] 不映射' },
+    ]
+    expect(listProjects(events, buildModel(events, NOW), files, { 'quiet-project': '主线' }, NOW))
+      .toEqual(['ARK', 'TaskFlow', 'job', 'life-admin', 'machine', 'quiet-project'])
+    expect(listProjects([], buildModel([], NOW), [], {}, NOW)).toEqual([])
+  })
+})
+
 describe('mainline pins', () => {
   it('round-trips through storage and ignores malformed values', () => {
     writePins({ ARK: '主线' })
@@ -271,7 +294,7 @@ describe('project panel on its own', () => {
     const onPin = vi.fn()
     const empty = treeOf([])
     const { unmount } = render(
-      <ProjectPanel tree={empty} events={[]} now={NOW} todos={{ status: 'ready', items: [] }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />,
+      <ProjectPanel reviewState={{ plans: [], read: true, observer: null }} reviewDebts={[]} tree={empty} events={[]} now={NOW} todos={{ status: 'ready', items: [] }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />,
     )
     expect(screen.queryByRole('button', { name: /设为主线/ })).toBeNull()
     expect(screen.getByText('还没有任务')).toBeTruthy()
@@ -281,7 +304,7 @@ describe('project panel on its own', () => {
       ev('start', 30, '主线'), ev('start', 20, '放掉的'), ev('drop', 10, '放掉的'),
       debt(5, '一个名字特别特别长以至于要被截断的分支任务', 'review'),
     ], '主线')
-    render(<ProjectPanel tree={tree} events={[]} now={NOW} todos={{ status: 'loading' }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />)
+    render(<ProjectPanel reviewState={{ plans: [], read: true, observer: null }} reviewDebts={[]} tree={tree} events={[]} now={NOW} todos={{ status: 'loading' }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />)
     fireEvent.click(screen.getByText(/已了结 1 条（完成 0）/))
     expect(screen.getByText(/✕ 放掉的/)).toBeTruthy()
     expect(screen.getByText(/^一个名字特别.*…$/)).toBeTruthy()
@@ -293,7 +316,7 @@ describe('project panel in the bar', () => {
     const state: TaskflowLedgerState = { events: parseLedgerText(lines.join('\n')), read: true, exists: true }
     const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
     const seal = vi.fn()
-    const props = { useLedger, seal, todos } as unknown as TaskFlowBarProps
+    const props = { useLedger, useReviewPlans, seal, todos } as unknown as TaskFlowBarProps
     const view = render(<TaskFlowBar {...props} />)
     fireEvent.click(view.container.firstElementChild as Element)
     return view
@@ -303,6 +326,32 @@ describe('project panel in the bar', () => {
     name: 'ARK.md',
     text: Array.from({ length: count }, (_, i) => `- [ ] 待办${i + 1}${i === 0 ? ' due:2026-09-28' : ''}`).join('\n'),
   }]
+
+  it('opens a project with current work and no review debts without expanding the tray', async () => {
+    renderBar([ev('start', 5, '正在做', { project: 'machine' })], vi.fn().mockResolvedValue([]))
+    const picker = screen.getByRole('combobox', { name: '项目' })
+    fireEvent.click(picker)
+    expect(screen.getByText('TaskFlow')).toBeTruthy()
+    fireEvent.change(picker, { target: { value: 'machine' } })
+    const panel = screen.getByRole('region', { name: 'machine 项目树' })
+    await within(panel).findByText('这个项目没有待办')
+    expect(within(panel).getByText('正在做')).toBeTruthy()
+    expect(within(panel).getByText('进行中')).toBeTruthy()
+    fireEvent.change(picker, { target: { value: '' } })
+    expect(screen.queryByRole('region', { name: 'machine 项目树' })).toBeNull()
+  })
+
+  it('makes a todo-only project reachable from the startup read and reports an initial failure', async () => {
+    const view = renderBar([], vi.fn().mockResolvedValue([{ name: 'job.md', text: '- [ ] 投递' }]))
+    await screen.findByRole('option', { name: 'job' })
+    fireEvent.change(screen.getByRole('combobox', { name: '项目' }), { target: { value: 'job' } })
+    const panel = screen.getByRole('region', { name: 'job 项目树' })
+    await within(panel).findByTitle('投递')
+    expect(within(panel).getByText('近 7 天没有活动')).toBeTruthy()
+    view.unmount()
+    renderBar([], vi.fn().mockRejectedValue(new Error('离线')))
+    await screen.findByText('待办读取失败：离线')
+  })
 
   it('opens from the tray project name, reads todos, pins a mainline and closes', async () => {
     const todos = vi.fn().mockResolvedValue(todoFile(PANEL_TODO_ROWS + 2))
@@ -325,7 +374,8 @@ describe('project panel in the bar', () => {
     expect(within(panel).getByText('还有 2 条')).toBeTruthy()
     // Unpinned, the most active task stands in as the mainline.
     expect(within(panel).getByText('主线 · 推测，悬停可改')).toBeTruthy()
-    expect(within(panel).getByText('主线占 57%')).toBeTruthy()
+    expect(within(panel).queryByText(/主线占|分支占|重心偏/)).toBeNull()
+    expect(within(panel).queryByRole('img', { name: /近 7 天 主线.*分支/ })).toBeNull()
     expect(within(panel).getByText('等你合并')).toBeTruthy()
     expect(within(panel).getByText('等你收口')).toBeTruthy()
 
@@ -342,7 +392,7 @@ describe('project panel in the bar', () => {
     const settledRow = within(panel).getByText(/✓ 主线/)
     fireEvent.click(within(settledRow).getByText('设为主线'))
     expect(readPins()).toEqual({ ARK: '主线' })
-    expect(within(panel).getByText('分支占 57%，重心偏到分支了')).toBeTruthy()
+    expect(within(panel).queryByText(/主线占|分支占|重心偏/)).toBeNull()
     expect(within(panel).getByText('已完成')).toBeTruthy()
 
     // A branch row's chip pins by mouse; the waiting mainline tag opens its card.
@@ -482,7 +532,10 @@ describe('project panel in the bar', () => {
     let resolve: (files: TaskflowTodoFile[]) => void = () => {}
     let reject: (error: unknown) => void = () => {}
     const todos = vi.fn()
+      .mockResolvedValue([])
+      .mockResolvedValueOnce([])
       .mockReturnValueOnce(new Promise<TaskflowTodoFile[]>((r) => { resolve = r }))
+      .mockResolvedValueOnce([])
       .mockReturnValueOnce(new Promise<TaskflowTodoFile[]>((_, r) => { reject = r }))
     renderBar([debt(10, '欠账', 'review')], todos)
     const name = screen.getByRole('button', { name: 'ARK' })

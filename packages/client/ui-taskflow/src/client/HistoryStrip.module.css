@@ -39,7 +39,7 @@
   font: var(--tf-font-meta);
   white-space: nowrap;
   cursor: pointer;
-  border: 1px solid rgb(255 255 255 / 70%);
+  border: 1px solid var(--dsw-alias-taskflow-history-border);
   border-radius: 4px;
   transition:
     width 0.12s ease,
@@ -57,9 +57,9 @@
   white-space: nowrap;
 }
 
-/* Segment label text stays dark: it sits on the light data palette in both themes. */
+/* Segment label text stays dark on the light project palette in every theme. */
 .seg {
-  color: #374151;
+  color: var(--dsw-alias-taskflow-history-label);
 }
 
 .lifted {
@@ -70,8 +70,8 @@
 
 .agg {
   justify-content: center;
-  color: #64748b;
-  background: #e8ecf2;
+  color: var(--dsw-alias-taskflow-history-aggregate-label);
+  background: var(--dsw-alias-taskflow-history-aggregate-bg);
 }
 
 .agg .label {
@@ -80,8 +80,8 @@
 
 .pack {
   justify-content: center;
-  color: #3b4a63;
-  background: linear-gradient(180deg, #eaf0f8, #dce6f2);
+  color: var(--dsw-alias-taskflow-history-packed-label);
+  background: var(--dsw-alias-taskflow-history-packed-bg);
 }
 
 .pack .label {
@@ -97,7 +97,7 @@
   z-index: 2;
   border-top: 5px solid transparent;
   border-bottom: 5px solid transparent;
-  border-left: 6px solid #64748b;
+  border-left: 6px solid var(--dsw-alias-taskflow-history-continuation);
   transform: translateY(-50%);
 }
 

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-15-taskflow-review-plans.md
+2026-10-15-taskflow-review-plans.md: df89889ca8721e87335e4645d1ea7cebeebbd351
+2026-10-15-taskflow-review-plans.zh.md: c5c8809dbc20a60e90d79d4d1b4e06987af9e997

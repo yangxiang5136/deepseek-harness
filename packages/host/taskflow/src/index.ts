@@ -23,8 +23,12 @@ import {
   readTodoFiles,
 } from './ledger.ts'
 import { formatSealLine, isNeedsYouOpenAt, parseLedger } from './seal.ts'
+import { readReviewPlanFiles, readReviewWatchStatus } from './review-plans.ts'
+import { codexConfirmationRef } from './confirmation.ts'
 import type {
   TaskflowLedgerSnapshot,
+  TaskflowPhaseConfirmationRequest,
+  TaskflowReviewPlanSnapshot,
   TaskflowSealRequest,
   TaskflowSealResult,
   TaskflowTodoSnapshot,
@@ -75,6 +79,24 @@ export function todoDirectory(): string {
     ?? join(homedir(), 'my-memories', 'todo', 'projects')
 }
 
+/**
+ * Fixed project review-plan directory, overridable only by host environment.
+ * @returns Absolute directory used by the read-only review-plan Remote call.
+ */
+export function reviewPlansDirectory(): string {
+  return process.env.DSH_TASKFLOW_REVIEW_PLANS_DIR
+    ?? join(homedir(), 'my-memories', 'attention', 'project-plans')
+}
+
+/**
+ * Public watcher status path, separate from private source offsets and transcripts.
+ * @returns Absolute host-selected JSON status path.
+ */
+export function reviewWatchStatusPath(): string {
+  return process.env.DSH_TASKFLOW_REVIEW_WATCH_STATUS
+    ?? join(homedir(), 'my-memories', 'attention', 'review-watch-status.json')
+}
+
 async function readLedger(): Promise<TaskflowLedgerSnapshot> {
   const override = process.env.DSH_TASKFLOW_LEDGER
   return override === undefined
@@ -110,6 +132,17 @@ export class TaskflowLedgerGateway extends TypertRemoteService {
   }
 
   /**
+   * Read bounded JSON plan texts from the host-selected directory. The client
+   * validates review-order semantics; this method has no path argument or writes.
+   * @returns Raw plan texts; missing directory is explicit, other failures reject.
+   */
+  @Remote('reviewPlans')
+  async reviewPlans(): Promise<TaskflowReviewPlanSnapshot> {
+    const observer = await readReviewWatchStatus(reviewWatchStatusPath())
+    return readReviewPlanFiles(reviewPlansDirectory(), observer)
+  }
+
+  /**
    * Seal (收口) one exact open debt, preferring its `event_id` and falling
    * back to `ts` only for a legacy target. The attention root's shared atomic
    * directory lock covers read-check-rotate-append, so concurrent processes
@@ -119,10 +152,37 @@ export class TaskflowLedgerGateway extends TypertRemoteService {
    */
   @Remote('seal')
   async seal(request: TaskflowSealRequest): Promise<TaskflowSealResult> {
+    if (request.confirmationRef !== SEAL_CONFIRMATION_REF) {
+      return { sealed: false, reason: 'invalid-request', line: null }
+    }
+    return this.sealExact(request)
+  }
+
+  /**
+   * End one selected phase using a literal human message in a native Codex transcript.
+   * Authentication checks the local source; callers interpret the statement's scope.
+   * Both this entry and the click entry append through the same exact seal transaction.
+   * @param request - exact debt plus native transcript location and human quotation.
+   * @returns Seal outcome; invalid or injected confirmation sources write nothing.
+   */
+  @Remote('confirmPhase')
+  async confirmPhase(request: TaskflowPhaseConfirmationRequest): Promise<TaskflowSealResult> {
+    const confirmationRef = await codexConfirmationRef(request, join(homedir(), '.codex'))
+    if (confirmationRef === null) return { sealed: false, reason: 'invalid-request', line: null }
+    return this.sealExact({
+      project: request.project,
+      task: request.task,
+      resolvesTs: request.resolvesTs,
+      ...(request.resolvesEventId === undefined ? {} : { resolvesEventId: request.resolvesEventId }),
+      confirmationRef,
+      note: request.quote,
+    })
+  }
+
+  private async sealExact(request: TaskflowSealRequest): Promise<TaskflowSealResult> {
     if (!isSingleLineIdentity(request.project) || !isSingleLineIdentity(request.task)
       || typeof request.resolvesTs !== 'string' || typeof request.confirmationRef !== 'string'
       || request.task.length > 240
-      || request.confirmationRef !== SEAL_CONFIRMATION_REF
       || (request.resolvesEventId === undefined && request.resolvesTs === '')
       || (request.resolvesEventId !== undefined
         && !isCanonicalUuid(request.resolvesEventId))

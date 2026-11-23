@@ -21,6 +21,8 @@ import { HistoryStrip } from '../src/client/HistoryStrip.tsx'
 import { MiniBar } from '../src/client/MiniBar.tsx'
 import { TitlePopover } from '../src/client/TitlePopover.tsx'
 import type { TaskFlowFace } from '../src/client/face.ts'
+import type { ReviewPlansState } from '../src/client/reviewPlans.ts'
+const useReviewPlans = (select: (state: ReviewPlansState) => unknown) => select({ plans: [], read: true, observer: null })
 import type { ClickPop } from '../src/client/interaction.ts'
 import type { TaskflowLedgerState } from '../src/client/ledger.ts'
 import {
@@ -31,6 +33,7 @@ import { SEAL_UNDO_MS } from '../src/client/deferredSeal.ts'
 
 afterEach(() => {
   cleanup()
+  localStorage.clear()
   vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -103,7 +106,7 @@ async function bench(overrides: {
       ok: true as const,
       value: { dir: '/bus/todo/projects', exists: true, files: [{ name: 'ARK.md', text: '- [ ] 地推' }] },
     })))
-  ctx.provide('remote.taskflow', { read, seal, todos })
+  ctx.provide('remote.taskflow', { read, seal, todos, reviewPlans: vi.fn().mockResolvedValue({ ok: true, value: { dir: '/bus/reviews', exists: true, observer: null, files: [] } }) })
   return { ctx, slots: ctx.get('slots') as SlotRegistry, read, seal, todos }
 }
 
@@ -197,7 +200,7 @@ describe('TaskFlowBar surface', () => {
   function renderBar(state: TaskflowLedgerState, seal: TaskFlowFace['seal']) {
     const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
     const todos = vi.fn().mockResolvedValue([])
-    const props = { useLedger, seal, todos } as unknown as TaskFlowBarProps
+    const props = { useLedger, useReviewPlans, seal, todos } as unknown as TaskFlowBarProps
     return render(<TaskFlowBar {...props} />)
   }
 
@@ -249,8 +252,7 @@ describe('TaskFlowBar surface', () => {
     fireEvent.click(screen.getByText(/移植 client/))
     // The title popover no longer lists debts: they live in the tray alone.
     expect(screen.queryByRole('button', { name: /^无心跳/ })).toBeNull()
-    // Nothing silent renders nothing — not even a stray count.
-    expect(screen.getByText('TaskFlow').parentElement?.textContent).toBe('TaskFlow▾')
+    expect(screen.getByRole('combobox', { name: '项目' })).toBeTruthy()
     fireEvent.click(screen.getByText('TaskFlow'))
     expect(screen.getByText('一切正常')).toBeTruthy()
     expect(screen.queryByText('待收口')).toBeNull()
@@ -258,7 +260,7 @@ describe('TaskFlowBar surface', () => {
     fireEvent.click(screen.getByRole('button', { name: '交付评审' }))
     const card = screen.getByRole('region', { name: '交付评审 详情' })
     expect(within(card).getByText('branch-x')).toBeTruthy()
-    fireEvent.click(within(card).getByRole('button', { name: '收口' }))
+    fireEvent.click(within(card).getByRole('button', { name: '本阶段结束，交史官复盘' }))
     await act(async () => { vi.advanceTimersByTime(SEAL_UNDO_MS + 10) })
     expect(seal).toHaveBeenCalledWith({
       project: 'digital-me',
@@ -308,8 +310,8 @@ describe('TaskFlowBar surface', () => {
     expect(screen.getByText('⚠ 账本读取失败')).toBeTruthy()
     fireEvent.click(screen.getByText('⚠ 账本读取失败'))
     expect(screen.getByText(/账本读取失败：boom/)).toBeTruthy()
-    // No events at all: the strip says so instead of rendering nothing.
-    expect(screen.getByText('今日暂无注意力事件')).toBeTruthy()
+    // No closed attention spans: the strip names its empty history.
+    expect(screen.getByText('今日暂无已结束的注意力时段')).toBeTruthy()
     expect(screen.getByText('无进行中任务')).toBeTruthy()
   })
 
@@ -317,7 +319,7 @@ describe('TaskFlowBar surface', () => {
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)
     const state = stateOf([])
     const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
-    const props = { useLedger, seal: vi.fn() } as unknown as TaskFlowBarProps
+    const props = { useLedger, useReviewPlans, seal: vi.fn(), todos: vi.fn().mockResolvedValue([]) } as unknown as TaskFlowBarProps
     const view = render(
       <div data-testid="frame">
         <div data-shell-overlay="">
@@ -390,7 +392,7 @@ describe('TaskFlowBar surface', () => {
     // observe-less immediate publish must still land on the frame.
     const state = stateOf([])
     const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
-    const props = { useLedger, seal: vi.fn() } as unknown as TaskFlowBarProps
+    const props = { useLedger, useReviewPlans, seal: vi.fn(), todos: vi.fn().mockResolvedValue([]) } as unknown as TaskFlowBarProps
     const view = render(
       <div data-testid="frame">
         <div data-shell-overlay="">

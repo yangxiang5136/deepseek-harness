@@ -3,7 +3,8 @@
 import { runInNewContext } from 'node:vm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { injectBootTheme } from '../src/boot-theme.ts'
-import type { ThemePreference } from '../src/theme-settings.ts'
+import type { ThemePalette, ThemePreference } from '../src/theme-settings.ts'
+import { ARK_PALETTE } from '../src/ark-palette.ts'
 
 const DARK_ATTRIBUTE = 'data-ds-dark-theme'
 
@@ -14,8 +15,9 @@ function mockSystemDark(matches: boolean): void {
 function executeBootstrap(
   preference?: ThemePreference,
   html = '<html><body><div id="root"></div><script type="module"></script></body></html>',
+  palette?: ThemePalette,
 ): string {
-  const injected = injectBootTheme(html, preference)
+  const injected = injectBootTheme(html, preference, palette)
   const source = /<script>([\s\S]*?)<\/script>/.exec(injected)?.[1]
   if (source === undefined) throw new Error('theme bootstrap script missing')
   runInNewContext(source, { document, matchMedia: globalThis.matchMedia })
@@ -27,6 +29,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
   document.documentElement.style.removeProperty('color-scheme')
   document.body.removeAttribute(DARK_ATTRIBUTE)
+  document.body.removeAttribute('data-dsw-boot-tokens')
+  for (const name of Object.keys(ARK_PALETTE)) document.body.style.removeProperty(name)
 })
 
 describe('theme boot index transform', () => {
@@ -67,5 +71,12 @@ describe('theme boot index transform', () => {
   it('appends the script to a body-less fragment', () => {
     const html = injectBootTheme('<main>loading</main>', 'dark')
     expect(html.startsWith('<main>loading</main><script>')).toBe(true)
+  })
+
+  it.each(['light', 'dark'] as const)('applies durable ARK %s colors before plugins activate', (scheme) => {
+    executeBootstrap(scheme, undefined, 'ark')
+    expect(document.body.style.getPropertyValue('--dsw-alias-brand-primary'))
+      .toBe(ARK_PALETTE['--dsw-alias-brand-primary']![scheme])
+    expect(document.body.getAttribute('data-dsw-boot-tokens')?.split(' ')).toEqual(Object.keys(ARK_PALETTE))
   })
 })

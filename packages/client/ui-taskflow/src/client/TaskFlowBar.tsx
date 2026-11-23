@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { TaskflowTodoFile } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls the ui-layout SlotMap merge (the shell.overlay list slot).
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import {
   buildChips, buildModel, CHIP_ROW_W, displayProject, estTextW, MODEL_W, noHeartbeat, REFRESH_MS, splitChips,
-  type TextMeasure,
+  type TextMeasure, type NeedsYouItem,
 } from './fold.ts'
 import type { TaskFlowFace } from './face.ts'
 import type { ClickPop } from './interaction.ts'
@@ -13,10 +14,11 @@ import { HistoryStrip } from './HistoryStrip.tsx'
 import { MiniBar } from './MiniBar.tsx'
 import { NeedsYouTray } from './NeedsYouTray.tsx'
 import { ProjectPanel, type TodoState } from './ProjectPanel.tsx'
-import { buildProjectTree, readPins, writePins } from './projectTree.ts'
+import { buildProjectTree, listProjects, readPins, writePins } from './projectTree.ts'
 import { todosForProject } from './todo.ts'
-import { useDeferredSeal } from './deferredSeal.ts'
+import { debtKey, useDeferredSeal } from './deferredSeal.ts'
 import { TitlePopover } from './TitlePopover.tsx'
+import { readView, writeView, type TaskflowView } from './viewState.ts'
 import css from './TaskFlowBar.module.css'
 
 /** The CSS seam ui-layout's frame consumes for content avoidance (S4). */
@@ -54,10 +56,10 @@ function createMeasure(): TextMeasure {
 
 /**
  * The TaskFlow bottom bar (spec §6 v3.0 final form): a collapsed 30px mini
- * strip ⇄ the expanded surface of exactly three elements — solid time-history
- * strip, width-adaptive running chip row, and the title popover as the single
- * intake for debts / no-heartbeat lanes / overflow. Data arrives through the
- * polled ledger hook and refolds every 10 s and on a 30 s clock; a read error
+ * strip ⇄ the expanded time-history strip, running chip row, debt tray, and
+ * project selector. The title popover lists no-heartbeat lanes and overflow.
+ * Data arrives through the polled ledger hook and refolds every 10 s and on
+ * a 30 s clock; a read error
  * rides the header (and the mini label) instead of freezing silently.
  *
  * The bar publishes its live height as {@link CLEARANCE_VAR} on the shell
@@ -69,16 +71,24 @@ function createMeasure(): TextMeasure {
  * NeedsYouTray.module.css keys its tighter grid height cap on that attribute
  * because the banner's class name is hashed in this module.
  */
-export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): ReactElement {
+export function TaskFlowBar({ useLedger, useReviewPlans, seal, todos }: TaskFlowBarProps): ReactElement {
   const ledger = useLedger(s => s)
-  const [collapsed, setCollapsed] = useState(true)
+  const reviewPlans = useReviewPlans(s => s)
+  const [view, setView] = useState(readView)
+  const { collapsed, openProject } = view
   const [now, setNow] = useState(() => Date.now())
   const [clickPop, setClickPop] = useState<ClickPop | null>(null)
   const [titleOpen, setTitleOpen] = useState(false)
-  const [openProject, setOpenProject] = useState<string | null>(null)
-  const [cardTask, setCardTask] = useState<string | null>(null)
+  const [selectedDebtKey, setSelectedDebtKey] = useState<string | null>(null)
   const [pins, setPins] = useState(readPins)
   const [todoState, setTodoState] = useState<TodoState>({ status: 'loading' })
+  const [todoFiles, setTodoFiles] = useState<TaskflowTodoFile[]>([])
+
+  const updateView = (change: Partial<TaskflowView>): void => {
+    const next = { ...view, ...change }
+    setView(next)
+    writeView(next)
+  }
 
   // The walking clock: minutes-scale labels advance between ledger refreshes.
   // REFRESH_MS-driven refolds arrive through the ledger hook itself.
@@ -146,24 +156,43 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
     () => splitChips(buildChips(model), leftW ?? CHIP_ROW_W, measure),
     [model, leftW, measure],
   )
-  // Opening a project reads the todo files once; a stale answer for a project
-  // that was closed or switched meanwhile is discarded.
+  // The startup read makes todo-only projects reachable. Project changes
+  // refresh that source; stale responses cannot replace a newer selection.
   useEffect(() => {
-    if (openProject === null) return
     let live = true
     setTodoState({ status: 'loading' })
     todos().then(
-      (files) => { if (live) setTodoState({ status: 'ready', items: todosForProject(files, openProject) }) },
+      (files) => {
+        if (live) {
+          setTodoFiles(files)
+          setTodoState({ status: 'ready', items: openProject === null ? [] : todosForProject(files, openProject) })
+        }
+      },
       (error: unknown) => {
         if (live) setTodoState({ status: 'error', message: error instanceof Error ? error.message : '读取失败' })
       },
     )
     return () => { live = false }
   }, [openProject, todos])
+  const projects = useMemo(
+    () => [...new Set([
+      ...listProjects(ledger.events, model, todoFiles, pins, now),
+      ...reviewPlans.plans.map(plan => displayProject(plan.project)),
+    ])].sort(),
+    [ledger.events, model, todoFiles, pins, now, reviewPlans.plans],
+  )
   const tree = useMemo(
     () => openProject === null ? null : buildProjectTree(ledger.events, model, openProject, pins[openProject], now),
     [openProject, ledger.events, model, pins, now],
   )
+
+  const openDebt = (debt: NeedsYouItem): void => {
+    const project = displayProject(debt.project)
+    const key = debtKey(debt)
+    updateView({ openProject: project })
+    setSelectedDebtKey(openProject === project && selectedDebtKey === key ? null : key)
+  }
+  const selectedDebt = model.needsYou.concat(model.parked).find(debt => debtKey(debt) === selectedDebtKey) ?? null
 
   // Bar-owned so collapsing the tray or the whole bar never drops a seal
   // that is still inside its 撤销 window.
@@ -175,8 +204,8 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
         model={model}
         now={now}
         loading={!ledger.read}
-        error={ledger.error}
-        onExpand={() => { setCollapsed(false) }}
+        error={ledger.error ?? reviewPlans.error}
+        onExpand={() => { updateView({ collapsed: false }) }}
         rootRef={rootRef}
       />
     )
@@ -191,7 +220,7 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
     setTitleOpen(false)
   }
   const collapse = (): void => {
-    setCollapsed(true)
+    updateView({ collapsed: true })
     closeAll()
   }
 
@@ -207,6 +236,21 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
         >
           TaskFlow
         </span>
+        <select
+          className={css.projects}
+          aria-label="项目"
+          title="打开项目树"
+          value={openProject ?? ''}
+          onClick={(e) => { e.stopPropagation() }}
+          onChange={(e) => {
+            updateView({ openProject: e.target.value || null })
+            setSelectedDebtKey(null)
+          }}
+        >
+          <option value="">项目</option>
+          {projects.map(project => <option key={project} value={project}>{project}</option>)}
+          {openProject !== null && !projects.includes(openProject) && <option value={openProject}>{openProject}</option>}
+        </select>
         {silent > 0 && (
           <button
             type="button"
@@ -222,6 +266,8 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
           </button>
         )}
         {ledger.error !== undefined && <span className={css.error}>{`账本读取失败：${ledger.error}`}</span>}
+        {reviewPlans.error !== undefined && <span className={css.error}>{`审阅计划读取失败：${reviewPlans.error}`}</span>}
+        {tree === null && todoState.status === 'error' && <span className={css.error}>{`待办读取失败：${todoState.message}`}</span>}
         <span className={css.spacer} />
         <button
           type="button"
@@ -265,12 +311,18 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
             setPins(next)
             writePins(next)
           }}
-          cardTask={cardTask}
-          onCard={setCardTask}
+          cardTask={selectedDebt?.task ?? null}
+          selectedDebt={selectedDebt}
+          reviewState={reviewPlans}
+          reviewDebts={model.needsYou}
+          onCard={(task) => {
+            const debt = [tree.main, ...tree.branches].find(entry => entry?.task === task)?.debt
+            setSelectedDebtKey(debt === undefined || debt === null ? null : debtKey(debt))
+          }}
           onSeal={(debt, note) => { sealer.queue(debt, note) }}
           onClose={() => {
-            setOpenProject(null)
-            setCardTask(null)
+            updateView({ openProject: null })
+            setSelectedDebtKey(null)
           }}
         />
       )}
@@ -279,16 +331,12 @@ export function TaskFlowBar({ useLedger, seal, todos }: TaskFlowBarProps): React
         sealer={sealer}
         openProject={openProject}
         onToggleProject={(project) => {
-          setOpenProject(openProject === project ? null : project)
-          setCardTask(null)
+          updateView({ openProject: openProject === project ? null : project })
+          setSelectedDebtKey(null)
         }}
-        openTask={cardTask}
-        onOpenDebt={(debt) => {
-          const project = displayProject(debt.project)
-          const same = openProject === project && cardTask === debt.task
-          setOpenProject(project)
-          setCardTask(same ? null : debt.task)
-        }}
+        openTask={selectedDebt?.task ?? null}
+        openDebtKey={selectedDebtKey}
+        onOpenDebt={openDebt}
       />
     </div>
   )

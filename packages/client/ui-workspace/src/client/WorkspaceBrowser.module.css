@@ -245,7 +245,7 @@
 .rail .sectionHeader {
   gap: 0;
   padding-left: 0;
-  margin-bottom: 12px;
+  margin-bottom: var(--dsh-sidebar-rail-gap, 12px);
   justify-content: flex-start;
 }
 
@@ -263,7 +263,7 @@
   width: 36px;
   height: 36px;
   padding: 0;
-  margin: 0 0 12px;
+  margin: 0 0 var(--dsh-sidebar-rail-gap, 12px);
   gap: 0;
   border-color: transparent;
   background: transparent;

@@ -34,7 +34,7 @@
 .trigger.rail {
   width: 36px;
   height: 36px;
-  margin: 8px 0 10px;
+  margin: var(--dsh-sidebar-settings-margin, 8px 0 10px);
   justify-content: center;
   gap: 0;
   padding: 0;

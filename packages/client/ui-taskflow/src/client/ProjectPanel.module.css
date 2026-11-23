@@ -32,16 +32,6 @@
   color: var(--tf-ink-3);
 }
 
-.lean {
-  font: var(--tf-font-lead);
-  color: var(--tf-wait-ink);
-}
-
-.calm {
-  font: var(--tf-font-item);
-  color: var(--tf-ink-2);
-}
-
 .section {
   font: var(--tf-font-ctrl);
   color: var(--tf-ink-2);
@@ -56,23 +46,6 @@
 
 .spacer {
   flex: 1;
-}
-
-.meter {
-  display: flex;
-  width: 120px;
-  height: 6px;
-  overflow: hidden;
-  background: var(--dsw-alias-bg-layer-2, #f3f4f6);
-  border-radius: 3px;
-}
-
-.meterMain {
-  background: var(--tf-main);
-}
-
-.meterBranch {
-  background: var(--tf-wait);
 }
 
 /* One button shape for the whole bar (attention-board style). */
@@ -472,4 +445,39 @@
   background: var(--dsw-alias-bg-layer-2, #f8f9fa);
   border: 1px solid var(--tf-line);
   border-radius: var(--tf-radius);
+}
+
+.reviewPlan {
+  margin-top: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--tf-line);
+}
+
+.reviewList {
+  display: grid;
+  gap: 6px;
+  padding-left: 24px;
+  margin: 8px 0;
+}
+
+.reviewItem {
+  min-width: 0;
+}
+
+.reviewRef {
+  font: var(--tf-font-hint);
+  color: var(--tf-ink-3);
+  overflow-wrap: anywhere;
+}
+
+.reviewSource {
+  margin-top: 4px;
+  font: var(--tf-font-meta);
+  color: var(--tf-ink-2);
+}
+
+.reviewStatus {
+  margin-left: 8px;
+  font: var(--tf-font-hint);
+  color: var(--tf-ink-3);
 }

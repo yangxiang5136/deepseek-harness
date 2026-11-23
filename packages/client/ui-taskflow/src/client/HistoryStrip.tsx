@@ -68,7 +68,11 @@ export function HistoryStrip({ model, now, measure, stripW, clickPop, onTogglePo
   if (items.length === 0) {
     return (
       <div className={css.mainline}>
-        <div className={css.empty}>今日暂无注意力事件</div>
+        <div className={css.empty}>
+          {model.current === null
+            ? '今日暂无已结束的注意力时段'
+            : '当前任务已记录，切换或结束后显示时间线'}
+        </div>
       </div>
     )
   }

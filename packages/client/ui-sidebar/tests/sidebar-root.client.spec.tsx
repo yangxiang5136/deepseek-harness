@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type {
   SidebarFooterActionOwnerProps, SidebarRootComponentProps, SidebarSectionOwnerProps,
   SidebarSettingsOwnerProps,
@@ -15,6 +15,8 @@ const t: SidebarRootComponentProps['t'] = key => (en as Record<string, string>)[
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 // The shell never reads the global hooks itself, but they ride the standard
@@ -52,6 +54,8 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
   )
   const view = render(root())
   return {
+    column: view.container.firstElementChild as HTMLElement,
+    unmount: () => { view.unmount() },
     startSession,
     toggleSidebar,
     regionOwner: () => {
@@ -115,5 +119,32 @@ describe('SidebarRoot shell', () => {
     const b = mountShell({ collapsed: true })
     expect(b.regionOwner().wide).toBe(false)
     expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
+  })
+
+  it('compacts spacing when the actual column becomes short and releases its size observer', () => {
+    let measuredHeight = 600
+    let onResize: ResizeObserverCallback | undefined
+    const observe = vi.fn()
+    const disconnect = vi.fn()
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => (
+      { height: measuredHeight } as DOMRect
+    ))
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: ResizeObserverCallback) { onResize = callback }
+      observe = observe
+      disconnect = disconnect
+    })
+    const b = mountShell({ collapsed: true })
+    expect(observe).toHaveBeenCalledWith(b.column)
+    for (const height of [199, 270, 271]) {
+      measuredHeight = height
+      act(() => { onResize?.([], {} as ResizeObserver) })
+      fireEvent.click(screen.getByRole('button', { name: 'New session' }))
+      expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
+      expect(b.regionOwner().wide).toBe(false)
+    }
+    expect(b.startSession).toHaveBeenCalledTimes(3)
+    b.unmount()
+    expect(disconnect).toHaveBeenCalledOnce()
   })
 })

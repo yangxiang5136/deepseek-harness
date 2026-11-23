@@ -246,6 +246,11 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'id', description: 'a registered theme id or `system`; unknown ids throw.' }],
       },
       {
+        signature: 'setPalette(palette: ThemePalette): void',
+        description: 'Switch the visual palette without changing the light/dark preference.',
+        parameters: [{ name: 'palette', description: 'Built-in palette selected in Appearance settings.' }],
+      },
+      {
         signature: 'register(definition: ThemeDefinition): () => void',
         description: 'Register a theme. Duplicate id throws (single occupant per id; the built-in pair counts; `system` is a preference, not a registrable id).',
         parameters: [{ name: 'definition', description: 'theme id, colorScheme, and alias-token overrides.' }],
@@ -810,12 +815,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ThemeDefinition {\n    id: string;\n    colorScheme: \'light\' | \'dark\';\n    tokens: ThemeTokens;\n}',
   },
   {
+    name: 'ThemePalette',
+    declaration: 'export type ThemePalette = typeof THEME_PALETTES[number];',
+  },
+  {
     name: 'ThemePreference',
     declaration: 'export type ThemePreference = typeof THEME_PREFERENCES[number];',
   },
   {
     name: 'ThemeSnapshot',
-    declaration: 'export interface ThemeSnapshot {\n    preference: ThemePreference;\n    active: ThemeDefinition;\n    themes: readonly ThemeDefinition[];\n    revision: number;\n}',
+    declaration: 'export interface ThemeSnapshot {\n    preference: ThemePreference;\n    palette: ThemePalette;\n    active: ThemeDefinition;\n    themes: readonly ThemeDefinition[];\n    revision: number;\n}',
   },
   {
     name: 'ThemeTokenModes',

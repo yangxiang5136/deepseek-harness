@@ -1,0 +1,11 @@
+history=当前任务已记录，切换或结束后显示时间线
+project=项目
+project=digital-me
+project=job
+current.tree=digital-me 项目树
+current.task=核对史官接续点
+current.state=进行中
+todo.tree=job 项目树
+todo.activity=近 7 天没有活动
+todo.task=还没有任务
+todo.next=准备申请材料

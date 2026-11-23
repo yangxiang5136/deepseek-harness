@@ -2,8 +2,9 @@
  * TaskFlow bottom status bar, browser half: the frame-wide `shell.overlay`
  * entry rendering the attention surface (spec §6 v3.0). Facts arrive through
  * the `taskflow` Remote namespace — the ledger observable polls `read()`
- * every {@link REFRESH_MS} and the popover's checkmark drives the audited
- * `seal()` gate; opening a project reads `todos()` for its tree. The fold
+ * every {@link REFRESH_MS}, alongside read-only review plans, and the popover's checkmark drives the audited
+ * `seal()` gate; startup and project changes read `todos()` for discovery
+ * and the open tree. The fold
  * itself is pure client code over the raw JSONL.
  */
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
@@ -13,6 +14,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import { REFRESH_MS } from './fold.ts'
 import { createTaskflowLedger } from './ledger.ts'
+import { createReviewPlans } from './reviewPlans.ts'
 import type { TaskFlowFace, TaskflowSealOutcome } from './face.ts'
 import { TaskFlowBar } from './TaskFlowBar.tsx'
 
@@ -38,14 +40,22 @@ export function apply(ctx: ClientContext): void {
     console.error('[ui-taskflow] reading the attention ledger failed:', error)
   })
 
+  const reviewPlans = createReviewPlans(async () => {
+    const answered = await ctx.remote.taskflow.reviewPlans()
+    if (!answered.ok) throw new Error(`${answered.error.code}: ${answered.error.message}`)
+    return answered.value
+  })
+
   ctx.effect(() => {
-    const timer = setInterval(() => { ledger.refresh() }, REFRESH_MS)
+    const timer = setInterval(() => { ledger.refresh(); reviewPlans.refresh() }, REFRESH_MS)
     return () => { clearInterval(timer) }
   }, 'ui-taskflow: ledger poll')
 
   ctx.on('connection/reset', () => {
     ledger.reset()
+    reviewPlans.reset()
     ledger.refresh()
+    reviewPlans.refresh()
   })
 
   const seal = async (request: TaskflowSealRequest): Promise<TaskflowSealOutcome> => {
@@ -69,8 +79,9 @@ export function apply(ctx: ClientContext): void {
     name: 'shell.overlay',
     id: 'taskflow-bar',
     order: 100,
-    inject: (): TaskFlowFace => ({ hooks: { ledger }, seal, todos }),
+    inject: (): TaskFlowFace => ({ hooks: { ledger, reviewPlans }, seal, todos }),
   }, TaskFlowBar))
 
   ledger.refresh()
+  reviewPlans.refresh()
 }

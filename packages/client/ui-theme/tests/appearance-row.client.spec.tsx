@@ -17,6 +17,9 @@ const COPY: Record<string, string> = {
   'appearance.light': 'Light',
   'appearance.dark': 'Dark',
   'appearance.system': 'System',
+  'appearance.palette': 'Color palette',
+  'appearance.palette.default': 'Original',
+  'appearance.palette.ark': 'ARK',
 }
 
 /** Empty global standard-kit hooks (the row reads neither). */
@@ -36,8 +39,9 @@ function emptyWorkspaces() {
 function mount(preference: ThemePreference = 'system') {
   // Real store instance — the sanctioned zero-machinery path for tests.
   const store = createAppearanceRowStore().create()
-  store.actions.sync(preference, 0)
+  store.actions.sync(preference, 0, 'default')
   const setTheme = vi.fn()
+  const setPalette = vi.fn()
   const props: AppearanceRowComponentProps = {
     useSessions: emptySessions(),
     useWorkspaces: emptyWorkspaces(),
@@ -45,9 +49,10 @@ function mount(preference: ThemePreference = 'system') {
     actions: store.actions,
     t: (key: string) => COPY[key] ?? key,
     setTheme,
+    setPalette,
   }
   render(<AppearanceRow {...props} />)
-  return { store, setTheme }
+  return { store, setTheme, setPalette }
 }
 
 const pressed = (name: RegExp): string | null =>
@@ -68,8 +73,21 @@ describe('AppearanceRow', () => {
     expect(b.setTheme).toHaveBeenCalledWith('light')
     // No store write yet: selection is unchanged.
     expect(pressed(/Dark/)).toBe('true')
-    act(() => { b.store.actions.sync('light', 1) })
+    act(() => { b.store.actions.sync('light', 1, 'default') })
     expect(pressed(/Light/)).toBe('true')
     expect(pressed(/Dark/)).toBe('false')
+  })
+
+  it('changes palette independently and reflects the accepted selection', () => {
+    const b = mount('dark')
+    expect(pressed(/Original/)).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: 'ARK' }))
+    expect(b.setPalette).toHaveBeenCalledWith('ark')
+    expect(b.setTheme).not.toHaveBeenCalled()
+    expect(pressed(/Original/)).toBe('true')
+    act(() => { b.store.actions.sync('dark', 1, 'ark') })
+    expect(pressed(/ARK/)).toBe('true')
+    expect(pressed(/Original/)).toBe('false')
+    expect(pressed(/Dark/)).toBe('true')
   })
 })

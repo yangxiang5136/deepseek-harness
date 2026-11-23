@@ -35,6 +35,26 @@ export interface TaskflowSealRequest {
   note?: string
 }
 
+/** Exact debt selected by a caller from a verified native human completion statement. */
+export interface TaskflowPhaseConfirmationRequest {
+  /** Exact project string of the open needs-you. */
+  project: string
+  /** Exact task phrase of the open needs-you. */
+  task: string
+  /** Raw timestamp of the specific debt; required for legacy debts. */
+  resolvesTs: string
+  /** Canonical identity when the target debt has an event ID. */
+  resolvesEventId?: string
+  /** Native interactive Codex thread UUID. */
+  threadId: string
+  /** Absolute transcript path under the host's Codex sessions or archived_sessions. */
+  sourcePath: string
+  /** Byte offset of the exact complete human response_item record. */
+  byteOffset: number
+  /** One verbatim user quotation, at most 280 characters; also the seal's note. */
+  quote: string
+}
+
 /** Outcome of a seal attempt; never throws for business outcomes. */
 export interface TaskflowSealResult {
   /** True when the done event was appended. */
@@ -61,4 +81,36 @@ export interface TaskflowTodoSnapshot {
   exists: boolean
   /** Regular `*.md` files in name order; symlinks and other entries are skipped. */
   files: TaskflowTodoFile[]
+}
+
+/** One top-level review-plan JSON file; business validation belongs to the client. */
+export interface TaskflowReviewPlanFile {
+  /** File name within the configured review-plan directory. */
+  name: string
+  /** UTF-8 JSON object text, preserved without normalization. */
+  text: string
+}
+
+/** Public health fields from the local review watcher, excluding its private cursors. */
+export interface TaskflowReviewObserver {
+  /** Last completed local-source scan, or null before the first scan. */
+  lastScanAt: string | null
+  /** Failed source reads in the latest scan, or null before the first scan. */
+  lastErrorCount: number | null
+  /** Adapter identities included in source scanning. */
+  coverage: string[]
+  /** Source categories explicitly outside this watcher's coverage. */
+  excluded: string[]
+}
+
+/** Bounded read of the host-configured project review-plan directory. */
+export interface TaskflowReviewPlanSnapshot {
+  /** Absolute directory selected by the host, never by the Remote caller. */
+  dir: string
+  /** False only when the directory is missing; invalid files and I/O errors reject. */
+  exists: boolean
+  /** Regular top-level `*.json` files in filename order. */
+  files: TaskflowReviewPlanFile[]
+  /** Whitelisted watcher health, or null when its status file is missing. */
+  observer: TaskflowReviewObserver | null
 }

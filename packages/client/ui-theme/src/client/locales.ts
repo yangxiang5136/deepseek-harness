@@ -6,6 +6,9 @@ export const zh = {
   'appearance.light': '浅色',
   'appearance.dark': '深色',
   'appearance.system': '跟随系统',
+  'appearance.palette': '配色',
+  'appearance.palette.default': '原版',
+  'appearance.palette.ark': '方舟',
 } satisfies Record<string, string>
 
 /** The settings.theme namespace key union. */
@@ -17,4 +20,7 @@ export const en = {
   'appearance.light': 'Light',
   'appearance.dark': 'Dark',
   'appearance.system': 'System',
+  'appearance.palette': 'Color palette',
+  'appearance.palette.default': 'Original',
+  'appearance.palette.ark': 'ARK',
 } satisfies Record<ThemeKey, string>
