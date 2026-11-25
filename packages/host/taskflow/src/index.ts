@@ -24,7 +24,7 @@ import {
 } from './ledger.ts'
 import { formatSealLine, isNeedsYouOpenAt, parseLedger } from './seal.ts'
 import { readReviewPlanFiles, readReviewWatchStatus } from './review-plans.ts'
-import { codexConfirmationRef } from './confirmation.ts'
+import { phaseConfirmationRef } from './confirmation.ts'
 import type {
   TaskflowLedgerSnapshot,
   TaskflowPhaseConfirmationRequest,
@@ -159,15 +159,15 @@ export class TaskflowLedgerGateway extends TypertRemoteService {
   }
 
   /**
-   * End one selected phase using a literal human message in a native Codex transcript.
-   * Authentication checks the local source; callers interpret the statement's scope.
+   * End one selected phase using a literal human message in a native Codex or Claude Code
+   * transcript. Authentication checks the local source; callers interpret the statement's scope.
    * Both this entry and the click entry append through the same exact seal transaction.
    * @param request - exact debt plus native transcript location and human quotation.
    * @returns Seal outcome; invalid or injected confirmation sources write nothing.
    */
   @Remote('confirmPhase')
   async confirmPhase(request: TaskflowPhaseConfirmationRequest): Promise<TaskflowSealResult> {
-    const confirmationRef = await codexConfirmationRef(request, join(homedir(), '.codex'))
+    const confirmationRef = await phaseConfirmationRef(request, homedir())
     if (confirmationRef === null) return { sealed: false, reason: 'invalid-request', line: null }
     return this.sealExact({
       project: request.project,
