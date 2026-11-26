@@ -213,6 +213,47 @@ describe('ui-taskflow browser plugin', () => {
     await b.ctx.fiber.dispose()
   })
 
+  it('looks up todo-decide destinations of open debts through the Remote on startup', async () => {
+    const claudeDebt = '00000000-0000-4000-8000-000000000001'
+    const codexDebt = '00000000-0000-4000-8000-000000000002'
+    const unrelatedDebt = '00000000-0000-4000-8000-000000000003'
+    const desktop = 'local_5b1c7a2e-3d4f-4a6b-9c8d-0e1f2a3b4c5d'
+    const thread = '019d8f2a-1111-7222-8333-444455556666'
+    const ts = new Date().toISOString()
+    const text = [claudeDebt, codexDebt].map(eventId => ledgerLine('needs-you', ts, {
+      schema_version: 2, event_id: eventId, task: eventId, payload: { kind: 'review', ref: 'fixture' },
+    })).join('\n')
+    const b = await bench({
+      read: () => Promise.resolve({ ok: true, value: { path: '/bus/events.jsonl', exists: true, mtimeMs: 1, text } }),
+      todos: () => Promise.resolve({
+        ok: true,
+        value: { dir: '/bus/todos', exists: true, files: [{ name: 'DME.md', text: [
+          `  - todo-decide · debt:${claudeDebt} · to:${desktop}`,
+          `  - todo-decide · debt:${codexDebt} · to:codex://threads/${thread}`,
+          `  - todo-decide · debt:${unrelatedDebt} · to:local_unrelated`,
+        ].join('\n') }] },
+      }),
+    })
+    declare(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    try {
+      const face = (b.slots.entries('shell.overlay')[0]!.inject as unknown as () => TaskFlowFace)()
+      await vi.waitFor(() => { expect(face.hooks.ledger.getSnapshot().read).toBe(true) })
+      const ledger = face.hooks.ledger.getSnapshot()
+      render(<TaskFlowBar {...{
+        useLedger: <R,>(select: (state: TaskflowLedgerState) => R) => select(ledger),
+        useReviewPlans, useSessionTitles,
+        seal: (request: Parameters<TaskFlowFace['seal']>[0]) => face.seal(request),
+        todos: () => face.todos(),
+        requestSessionTitles: (ids: readonly string[]) => { face.requestSessionTitles(ids) },
+      } as unknown as TaskFlowBarProps} />)
+      await vi.waitFor(() => { expect(b.sessionTitles).toHaveBeenCalledWith({ ids: [thread, desktop] }) })
+      expect(b.sessionTitles).toHaveBeenCalledTimes(1)
+    } finally {
+      await b.ctx.fiber.dispose()
+    }
+  })
+
   it('surfaces a read failure on the ledger snapshot (fail-loud)', async () => {
     const b = await bench({
       read: () => Promise.reject(new Error('boom')),

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-11-26-taskflow-needs-you-session.md
-2026-11-26-taskflow-needs-you-session.md: 5abe02cb1077053407e265302a52bbd480ffa7c5
-2026-11-26-taskflow-needs-you-session.zh.md: c21f6c66ac65fa3e63042965226fca1550bea7d0
+2026-11-26-taskflow-needs-you-session.md: ad1035d06d4c2a271bf1aafed6cbce0de11729da
+2026-11-26-taskflow-needs-you-session.zh.md: efc43e5b630bd596f008ccd02f543584145d2187
