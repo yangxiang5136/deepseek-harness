@@ -1,9 +1,9 @@
-import { useCallback, useState, type ReactElement } from 'react'
+import { Fragment, useCallback, useState, type ReactElement } from 'react'
 import type { AttentionEvent, NeedsYouItem } from './fold.ts'
 import { buildHandoff, eventLine, fmtStamp } from './handoff.ts'
 import { doCopy, type CopyState } from './interaction.ts'
 import { fmtAge } from './NeedsYouTray.tsx'
-import { debtSessionId, sessionDestination, type SessionTitlesState } from './sessionTitles.ts'
+import { debtChatFacts, type SessionTitlesState } from './sessionTitles.ts'
 import css from './ProjectPanel.module.css'
 
 /** Story rows the card lists (the prompt carries more). */
@@ -18,8 +18,10 @@ export interface DebtCardProps {
   label: string
   events: readonly AttentionEvent[]
   now: number
-  /** Cached chat titles; the card names the chat the debt came from, if it names one. */
+  /** Cached titles for the destination and originating chats. */
   sessionTitles: SessionTitlesState
+  /** Todo-decide destinations keyed by debt event ID. */
+  destinations: ReadonlyMap<string, string>
   /** Seal this debt with Sean's optional closing note / feedback for AIs. */
   onSeal: (note: string) => void
   onClose: () => void
@@ -31,18 +33,18 @@ export interface DebtCardProps {
  * what happened since, the last few ledger events, a continuation prompt for
  * any AI (folded until previewed), and the seal with a one-line note that
  * becomes feedback future AIs read before working on the project. Everything
- * re-derives from the ledger and the title cache on each refold.
- * @param props - debt, label, ledger, clock, title cache, seal and close verbs.
+ * derives from the ledger, todo destinations, and the title cache.
+ * @param props - debt, label, ledger, clock, destinations, title cache, seal and close verbs.
  * @returns The card element.
  */
-export function DebtCard({ debt, label, events, now, sessionTitles, onSeal, onClose }: DebtCardProps): ReactElement {
+export function DebtCard({ debt, label, events, now, sessionTitles, destinations, onSeal, onClose }: DebtCardProps): ReactElement {
   const [copied, setCopied] = useState<CopyState | null>(null)
   const [note, setNote] = useState('')
-  const handoff = buildHandoff(debt, label, events, now)
+  const to = debt.eventId === undefined ? undefined : destinations.get(debt.eventId)
+  const handoff = buildHandoff(debt, label, events, now, to)
   const ref = typeof debt.payload?.ref === 'string' ? debt.payload.ref : '（未写）'
   const why = typeof debt.payload?.note === 'string' ? debt.payload.note : '（未写）'
-  const sessionId = debtSessionId(debt)
-  const origin = sessionId === null ? null : { id: sessionId, ...sessionDestination(sessionId, sessionTitles) }
+  const chatFacts = debtChatFacts(debt, to, sessionTitles)
   const story = handoff.timeline.slice(-CARD_TIMELINE_ROWS)
   const parked = debt.kind === 'park'
   // Park only: its status carries an explanation in （…）, which moves to a
@@ -72,12 +74,12 @@ export function DebtCard({ debt, label, events, now, sessionTitles, onSeal, onCl
         <dd>{`${fmtAge(now - debt.t)} · ${fmtStamp(debt.t)} 由 ${debt.surface} 提出`}</dd>
         <dt>收口入口</dt>
         <dd className={css.mono}>{ref}</dd>
-        {origin !== null && (
-          <>
-            <dt>{origin.label}</dt>
-            <dd title={origin.id}>{origin.value}</dd>
-          </>
-        )}
+        {chatFacts.map(row => (
+          <Fragment key={row.label}>
+            <dt>{row.label}</dt>
+            <dd title={row.title}>{row.value}</dd>
+          </Fragment>
+        ))}
         <dt>说明</dt>
         <dd className={css.why}>{why}</dd>
         <dt>最新动态</dt>

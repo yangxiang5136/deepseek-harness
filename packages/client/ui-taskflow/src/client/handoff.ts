@@ -136,10 +136,11 @@ export interface Handoff {
  * @param label - display project (aliases folded).
  * @param events - parsed ledger.
  * @param now - wall-clock instant.
+ * @param to - raw todo-decide destination for this debt, if present.
  * @returns Card content and the continuation prompt.
  */
 export function buildHandoff(
-  debt: NeedsYouItem, label: string, events: readonly AttentionEvent[], now: number,
+  debt: NeedsYouItem, label: string, events: readonly AttentionEvent[], now: number, to?: string,
 ): Handoff {
   const ask = askFor(debt.kind)
   const timeline = taskEvents(events, debt.project, debt.task)
@@ -166,6 +167,7 @@ export function buildHandoff(
     `- 任务：${debt.task}`,
     `- 状态：${ask.status}，已等 ${fmtAge(now - debt.t)}（${fmtStamp(debt.t)} 由 ${debt.surface} 提出）`,
     `- 收口入口：${ref}`,
+    ...(to === undefined ? [] : [`- 去处：${to}（待判位记的去处）`]),
     ...(session === null ? [] : [`- 来源会话：${session}（提出这条的聊天，需要前因后果时先回那里看）`]),
     `- 说明：${note}`,
     ...(latest === null ? [] : [`- 交接后最新动态：${eventLine(latest)}`]),

@@ -69,7 +69,7 @@ describe('review order and exact debt detail', () => {
     render(<ProjectPanel
       tree={tree} events={[]} now={NOW} todos={{ status: 'ready', items: [] }} onPin={vi.fn()}
       cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()}
-      reviewState={state()} sessionTitles={{ titles: new Map() }} reviewDebts={[]}
+      reviewState={state()} sessionTitles={{ titles: new Map() }} destinations={new Map()} reviewDebts={[]}
     />)
     expect(screen.queryByRole('region', { name: 'job 审阅顺序' })).toBeNull()
     expect(screen.queryByText('建议审阅顺序')).toBeNull()

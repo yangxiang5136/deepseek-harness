@@ -28,6 +28,8 @@ export interface TwoPaneProps {
   sealer: DeferredSeal
   /** Cached titles of the chats that debts name; the debt card shows its debt's. */
   sessionTitles: SessionTitlesState
+  /** Todo-decide destinations keyed by debt event ID. */
+  destinations: ReadonlyMap<string, string>
   /** Tasks offered when pinning, by display project (most active first). */
   candidates: (label: string) => readonly string[]
   /** Replace one project's pins; resolves to a message when the host refuses. */
@@ -74,8 +76,8 @@ function noteOf(debt: NeedsYouItem): string {
  * @returns The two-pane element.
  */
 export function TwoPane({
-  tiers, openProject, onOpenProject, events, now, sealer, sessionTitles, candidates, onSetMainlines, total, legacy, all,
-  pinsError,
+  tiers, openProject, onOpenProject, events, now, sealer, sessionTitles, destinations, candidates, onSetMainlines,
+  total, legacy, all, pinsError,
 }: TwoPaneProps): ReactElement {
   const [open, setOpen] = useState<string | null>(null)
   const [more, setMore] = useState(false)
@@ -337,6 +339,7 @@ export function TwoPane({
               <DebtCard
                 key={debtKey(cardDebt)} debt={cardDebt} label={label} events={events} now={now}
                 sessionTitles={sessionTitles}
+                destinations={destinations}
                 onSeal={(note) => { sealer.queue(cardDebt, note); setCardKey(null) }}
                 onClose={() => { setCardKey(null) }}
               />

@@ -1,8 +1,6 @@
 /**
- * Open items from the bus todo files (`~/my-memories/todo/projects/*.md`),
- * reduced to short titles for the project tree's "after now" nodes. The todo
- * files are prose-heavy and human-curated; extraction is deliberately loose
- * and never writes back.
+ * Read bus todo files for two surfaces: short open-item titles for the project
+ * tree and exact debt destinations for the detail card.
  */
 
 import type { TaskflowTodoFile } from '@deepseek-ai/dsh-api-remotes/client'
@@ -34,6 +32,40 @@ const BOLD = /^\*\*(.+?)\*\*/
 const CUT = / · | —— | — /
 const DUE = /due:(\d{4}-\d{2}-\d{2})/
 const DUE_TAG = /\s*due:\d{4}-\d{2}-\d{2}/g
+const TODO_DECIDE = /^  - todo-decide(?= |$)/
+
+/**
+ * Read destinations from todo-decide rows across all files.
+ * @param files - raw todo files from the host.
+ * @returns Destinations by exact debt event ID, excluding debts with conflicting destinations.
+ */
+export function parseTodoDestinations(files: readonly TaskflowTodoFile[]): ReadonlyMap<string, string> {
+  const destinations = new Map<string, string>()
+  const ambiguous = new Set<string>()
+  for (const file of files) {
+    for (const line of file.text.split(/\r?\n/)) {
+      if (!TODO_DECIDE.test(line)) continue
+      const fields = new Map<string, string>()
+      for (const field of line.split(' · ').slice(1)) {
+        const colon = field.indexOf(':')
+        if (colon < 0) continue
+        const name = field.slice(0, colon)
+        if (name === 'debt' || name === 'to') fields.set(name, field.slice(colon + 1).trim())
+      }
+      const debt = fields.get('debt')
+      const to = fields.get('to')
+      if (!debt || !to || to === '-' || ambiguous.has(debt)) continue
+      const previous = destinations.get(debt)
+      if (previous !== undefined && previous !== to) {
+        destinations.delete(debt)
+        ambiguous.add(debt)
+      } else {
+        destinations.set(debt, to)
+      }
+    }
+  }
+  return destinations
+}
 
 /**
  * Shorten one todo line to the phrase a person would call it by: the bold
