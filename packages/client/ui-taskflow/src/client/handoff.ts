@@ -7,6 +7,7 @@
 
 import { displayProject, type AttentionEvent, type NeedsYouItem } from './fold.ts'
 import { fmtAge } from './NeedsYouTray.tsx'
+import { debtSessionId } from './sessionTitles.ts'
 
 /** Timeline rows the prompt carries before summarizing the rest. */
 export const PROMPT_TIMELINE_ROWS = 12
@@ -146,6 +147,7 @@ export function buildHandoff(
   const latest = after[after.length - 1] ?? null
   const ref = typeof debt.payload?.ref === 'string' ? debt.payload.ref : '（未写）'
   const note = typeof debt.payload?.note === 'string' ? debt.payload.note : '（未写）'
+  const session = debtSessionId(debt)
   const task = shellArg(debt.task)
   const project = shellArg(debt.project)
   const shown = timeline.slice(-PROMPT_TIMELINE_ROWS)
@@ -164,6 +166,7 @@ export function buildHandoff(
     `- 任务：${debt.task}`,
     `- 状态：${ask.status}，已等 ${fmtAge(now - debt.t)}（${fmtStamp(debt.t)} 由 ${debt.surface} 提出）`,
     `- 收口入口：${ref}`,
+    ...(session === null ? [] : [`- 来源会话：${session}（提出这条的聊天，需要前因后果时先回那里看）`]),
     `- 说明：${note}`,
     ...(latest === null ? [] : [`- 交接后最新动态：${eventLine(latest)}`]),
     '',

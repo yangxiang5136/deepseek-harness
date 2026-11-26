@@ -9,6 +9,7 @@ import type { TaskflowLedgerState } from '../src/client/ledger.ts'
 import { ProjectPanel } from '../src/client/ProjectPanel.tsx'
 import { buildProjectTree } from '../src/client/projectTree.ts'
 import type { ReviewPlansState } from '../src/client/reviewPlans.ts'
+import type { SessionTitlesState } from '../src/client/sessionTitles.ts'
 
 const NOW = Date.parse('2026-10-15T04:00:00Z')
 const FIRST = '123e4567-e89b-42d3-a456-426614174001'
@@ -40,6 +41,8 @@ describe('review order and exact debt detail', () => {
     const props = {
       useLedger: (select: (value: TaskflowLedgerState) => unknown) => select(ledger),
       useReviewPlans: (select: (value: ReviewPlansState) => unknown) => select(state()),
+      useSessionTitles: (select: (value: SessionTitlesState) => unknown) => select({ titles: new Map() }),
+      requestSessionTitles: vi.fn(),
       seal: vi.fn(), todos: vi.fn().mockResolvedValue([]),
     } as unknown as TaskFlowBarProps
     render(<TaskFlowBar {...props} />)
@@ -66,7 +69,7 @@ describe('review order and exact debt detail', () => {
     render(<ProjectPanel
       tree={tree} events={[]} now={NOW} todos={{ status: 'ready', items: [] }} onPin={vi.fn()}
       cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()}
-      reviewState={state()} reviewDebts={[]}
+      reviewState={state()} sessionTitles={{ titles: new Map() }} reviewDebts={[]}
     />)
     expect(screen.queryByRole('region', { name: 'job 审阅顺序' })).toBeNull()
     expect(screen.queryByText('建议审阅顺序')).toBeNull()

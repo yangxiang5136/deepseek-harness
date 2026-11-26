@@ -11,7 +11,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
-  TaskflowLedgerSnapshot, TaskflowSealResult, TaskflowTodoSnapshot,
+  TaskflowLedgerSnapshot, TaskflowSealResult, TaskflowSessionTitlesRequest, TaskflowSessionTitlesResult,
+  TaskflowTodoSnapshot,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import { apply, inject } from '../src/client/index.ts'
 import { TaskFlowBar, type TaskFlowBarProps } from '../src/client/TaskFlowBar.tsx'
@@ -23,6 +24,8 @@ import { TitlePopover } from '../src/client/TitlePopover.tsx'
 import type { TaskFlowFace } from '../src/client/face.ts'
 import type { ReviewPlansState } from '../src/client/reviewPlans.ts'
 const useReviewPlans = (select: (state: ReviewPlansState) => unknown) => select({ plans: [], read: true, observer: null })
+import type { SessionTitlesState } from '../src/client/sessionTitles.ts'
+const useSessionTitles = (select: (state: SessionTitlesState) => unknown) => select({ titles: new Map() })
 import type { ClickPop } from '../src/client/interaction.ts'
 import type { TaskflowLedgerState } from '../src/client/ledger.ts'
 import {
@@ -82,6 +85,7 @@ async function bench(overrides: {
   read?: () => Promise<Wire<TaskflowLedgerSnapshot>>
   seal?: () => Promise<Wire<TaskflowSealResult>>
   todos?: () => Promise<Wire<TaskflowTodoSnapshot>>
+  sessionTitles?: (request: TaskflowSessionTitlesRequest) => Promise<Wire<TaskflowSessionTitlesResult>>
 } = {}) {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
@@ -106,8 +110,10 @@ async function bench(overrides: {
       ok: true as const,
       value: { dir: '/bus/todo/projects', exists: true, files: [{ name: 'ARK.md', text: '- [ ] 地推' }] },
     })))
-  ctx.provide('remote.taskflow', { read, seal, todos, reviewPlans: vi.fn().mockResolvedValue({ ok: true, value: { dir: '/bus/reviews', exists: true, observer: null, files: [] } }) })
-  return { ctx, slots: ctx.get('slots') as SlotRegistry, read, seal, todos }
+  const sessionTitles = vi.fn(overrides.sessionTitles
+    ?? (() => Promise.resolve({ ok: true as const, value: { titles: {} } })))
+  ctx.provide('remote.taskflow', { read, seal, todos, sessionTitles, reviewPlans: vi.fn().mockResolvedValue({ ok: true, value: { dir: '/bus/reviews', exists: true, observer: null, files: [] } }) })
+  return { ctx, slots: ctx.get('slots') as SlotRegistry, read, seal, todos, sessionTitles }
 }
 
 function declare(slots: SlotRegistry): void {
@@ -180,6 +186,33 @@ describe('ui-taskflow browser plugin', () => {
     await b.ctx.fiber.dispose()
   })
 
+  it('looks up session titles through the Remote, tolerating a wire failure and resetting on reconnect', async () => {
+    const b = await bench({
+      sessionTitles: vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          value: { titles: { local_a: { tool: 'claude-code', title: '桌面任务', archived: true } } },
+        })
+        .mockResolvedValueOnce({ ok: false, error: { code: 'REMOTE_ERROR', message: 'down' } }),
+    })
+    declare(b.slots)
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const face = (b.slots.entries('shell.overlay')[0]!.inject as unknown as () => TaskFlowFace)()
+    face.requestSessionTitles(['local_a'])
+    await vi.waitFor(() => {
+      expect(face.hooks.sessionTitles.getSnapshot().titles.get('local_a'))
+        .toEqual({ tool: 'claude-code', title: '桌面任务', archived: true })
+    })
+    expect(b.sessionTitles).toHaveBeenCalledWith({ ids: ['local_a'] })
+    face.requestSessionTitles(['019d-thread'])
+    await vi.waitFor(() => { expect(face.hooks.sessionTitles.getSnapshot().titles.get('019d-thread')).toBeNull() })
+    expect(errors).toHaveBeenCalledWith('[ui-taskflow] looking up session titles failed:', new Error('REMOTE_ERROR: down'))
+    b.ctx.emit('connection/reset')
+    expect(face.hooks.sessionTitles.getSnapshot().titles.size).toBe(0)
+    await b.ctx.fiber.dispose()
+  })
+
   it('surfaces a read failure on the ledger snapshot (fail-loud)', async () => {
     const b = await bench({
       read: () => Promise.reject(new Error('boom')),
@@ -200,7 +233,7 @@ describe('TaskFlowBar surface', () => {
   function renderBar(state: TaskflowLedgerState, seal: TaskFlowFace['seal']) {
     const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
     const todos = vi.fn().mockResolvedValue([])
-    const props = { useLedger, useReviewPlans, seal, todos } as unknown as TaskFlowBarProps
+    const props = { useLedger, useReviewPlans, useSessionTitles, seal, todos, requestSessionTitles: vi.fn() } as unknown as TaskFlowBarProps
     return render(<TaskFlowBar {...props} />)
   }
 
@@ -319,7 +352,10 @@ describe('TaskFlowBar surface', () => {
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)
     const state = stateOf([])
     const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
-    const props = { useLedger, useReviewPlans, seal: vi.fn(), todos: vi.fn().mockResolvedValue([]) } as unknown as TaskFlowBarProps
+    const props = {
+      useLedger, useReviewPlans, useSessionTitles, seal: vi.fn(), todos: vi.fn().mockResolvedValue([]),
+      requestSessionTitles: vi.fn(),
+    } as unknown as TaskFlowBarProps
     const view = render(
       <div data-testid="frame">
         <div data-shell-overlay="">
@@ -392,7 +428,10 @@ describe('TaskFlowBar surface', () => {
     // observe-less immediate publish must still land on the frame.
     const state = stateOf([])
     const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
-    const props = { useLedger, useReviewPlans, seal: vi.fn(), todos: vi.fn().mockResolvedValue([]) } as unknown as TaskFlowBarProps
+    const props = {
+      useLedger, useReviewPlans, useSessionTitles, seal: vi.fn(), todos: vi.fn().mockResolvedValue([]),
+      requestSessionTitles: vi.fn(),
+    } as unknown as TaskFlowBarProps
     const view = render(
       <div data-testid="frame">
         <div data-shell-overlay="">

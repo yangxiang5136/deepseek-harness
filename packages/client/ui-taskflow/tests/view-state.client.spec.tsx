@@ -6,6 +6,7 @@ import { parseLedgerText } from '../src/client/fold.ts'
 import type { TaskflowLedgerState } from '../src/client/ledger.ts'
 import { parseReviewPlan } from '../src/client/reviewPlan.ts'
 import type { ReviewPlansState } from '../src/client/reviewPlans.ts'
+import type { SessionTitlesState } from '../src/client/sessionTitles.ts'
 import { readView, TASKFLOW_VIEW_KEY } from '../src/client/viewState.ts'
 
 const NOW = Date.parse('2026-10-15T08:00:00Z')
@@ -41,6 +42,8 @@ function props(): TaskFlowBarProps {
   return {
     useLedger: (select: (value: TaskflowLedgerState) => unknown) => select(ledger),
     useReviewPlans: (select: (value: ReviewPlansState) => unknown) => select(plans),
+    useSessionTitles: (select: (value: SessionTitlesState) => unknown) => select({ titles: new Map() }),
+    requestSessionTitles: vi.fn(),
     seal: vi.fn(), todos: vi.fn().mockResolvedValue([{ name: 'job.md', text: '- [ ] 申请材料' }]),
   } as unknown as TaskFlowBarProps
 }
@@ -128,6 +131,8 @@ describe('TaskFlow viewing preference across remounts', () => {
     const input = {
       ...props(),
       useReviewPlans: (select: (value: ReviewPlansState) => unknown) => select({ plans: [], read: true, observer: null, error: '计划离线' }),
+      useSessionTitles: (select: (value: SessionTitlesState) => unknown) => select({ titles: new Map() }),
+      requestSessionTitles: vi.fn(),
       todos: vi.fn().mockRejectedValue(new Error('待办离线')),
     } as unknown as TaskFlowBarProps
     render(<TaskFlowBar {...input} />)

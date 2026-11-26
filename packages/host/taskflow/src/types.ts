@@ -84,6 +84,31 @@ export interface TaskflowSealResult {
   line: string | null
 }
 
+/** Chat tool whose local store names a session. */
+export type TaskflowSessionTool = 'claude-code' | 'codex'
+
+/** Display title of one chat session named by a needs-you `payload.session`. */
+export interface TaskflowSessionTitle {
+  /** Tool whose store or fallback entry names the session. */
+  tool: TaskflowSessionTool
+  /** Single-line title with whitespace runs collapsed, at most 200 characters. */
+  title: string
+  /** The source's archive flag; omitted when the source records none. */
+  archived?: boolean
+}
+
+/** Session ids whose titles the client displays. */
+export interface TaskflowSessionTitlesRequest {
+  /** At most 500 non-empty ids; ids longer than 256 characters resolve to nothing. */
+  ids: string[]
+}
+
+/** Titles for the requested ids that a host-selected source names. */
+export interface TaskflowSessionTitlesResult {
+  /** Requested id to its title; ids that no source names are absent. */
+  titles: Record<string, TaskflowSessionTitle>
+}
+
 /** One project todo file from the bus todo directory, raw. */
 export interface TaskflowTodoFile {
   /** File name, e.g. `ARK.md`; the client maps it to a ledger project. */
