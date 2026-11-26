@@ -35,8 +35,8 @@ export interface TaskflowSealRequest {
   note?: string
 }
 
-/** Exact debt selected by a caller from a verified native human completion statement. */
-export interface TaskflowPhaseConfirmationRequest {
+/** Exact debt and quoted transcript record shared by every confirmation surface. */
+export interface TaskflowPhaseConfirmationBase {
   /** Exact project string of the open needs-you. */
   project: string
   /** Exact task phrase of the open needs-you. */
@@ -45,15 +45,34 @@ export interface TaskflowPhaseConfirmationRequest {
   resolvesTs: string
   /** Canonical identity when the target debt has an event ID. */
   resolvesEventId?: string
-  /** Native interactive Codex thread UUID. */
-  threadId: string
-  /** Absolute transcript path under the host's Codex sessions or archived_sessions. */
+  /** Absolute transcript path under the surface's host-owned root. */
   sourcePath: string
-  /** Byte offset of the exact complete human response_item record. */
+  /** Byte offset where the complete human message record starts. */
   byteOffset: number
   /** One verbatim user quotation, at most 280 characters; also the seal's note. */
   quote: string
 }
+
+/** Confirmation quoted from a native interactive Codex thread. */
+export interface TaskflowCodexPhaseConfirmation extends TaskflowPhaseConfirmationBase {
+  /** Codex surface; requests written before surface selection omit it. */
+  surface?: 'codex'
+  /** Native interactive Codex thread UUID. */
+  threadId: string
+}
+
+/** Confirmation quoted from a main Claude Code session transcript. */
+export interface TaskflowClaudeCodePhaseConfirmation extends TaskflowPhaseConfirmationBase {
+  /** Claude Code surface. */
+  surface: 'claude-code'
+  /** Claude Code session UUID; the transcript file is `<sessionId>.jsonl`. */
+  sessionId: string
+}
+
+/** Exact debt selected by a caller from a verified native human completion statement. */
+export type TaskflowPhaseConfirmationRequest =
+  | TaskflowCodexPhaseConfirmation
+  | TaskflowClaudeCodePhaseConfirmation
 
 /** Outcome of a seal attempt; never throws for business outcomes. */
 export interface TaskflowSealResult {
