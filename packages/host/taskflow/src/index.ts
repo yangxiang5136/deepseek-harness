@@ -25,12 +25,15 @@ import {
 import { formatSealLine, isNeedsYouOpenAt, parseLedger } from './seal.ts'
 import { readReviewPlanFiles, readReviewWatchStatus } from './review-plans.ts'
 import { phaseConfirmationRef } from './confirmation.ts'
+import { readSessionTitles, SESSION_TITLE_IDS_MAX, type ClaudeSessionMemo } from './sessionTitles.ts'
 import type {
   TaskflowLedgerSnapshot,
   TaskflowPhaseConfirmationRequest,
   TaskflowReviewPlanSnapshot,
   TaskflowSealRequest,
   TaskflowSealResult,
+  TaskflowSessionTitlesRequest,
+  TaskflowSessionTitlesResult,
   TaskflowTodoSnapshot,
 } from './types.ts'
 
@@ -97,6 +100,33 @@ export function reviewWatchStatusPath(): string {
     ?? join(homedir(), 'my-memories', 'attention', 'review-watch-status.json')
 }
 
+/**
+ * Claude desktop session store read for session titles.
+ * @returns `DSH_TASKFLOW_CLAUDE_SESSIONS_DIR`, or the desktop app's store under the home directory.
+ */
+export function claudeSessionsDirectory(): string {
+  return process.env.DSH_TASKFLOW_CLAUDE_SESSIONS_DIR
+    ?? join(homedir(), 'Library', 'Application Support', 'Claude', 'claude-code-sessions')
+}
+
+/**
+ * Codex session index read for session titles.
+ * @returns `DSH_TASKFLOW_CODEX_SESSION_INDEX`, or `~/.codex/session_index.jsonl`.
+ */
+export function codexSessionIndexPath(): string {
+  return process.env.DSH_TASKFLOW_CODEX_SESSION_INDEX
+    ?? join(homedir(), '.codex', 'session_index.jsonl')
+}
+
+/**
+ * Fallback session-title file for hosts without the live chat stores.
+ * @returns `DSH_TASKFLOW_SESSION_TITLES`, or `session-titles.json` beside the ledger.
+ */
+export function sessionTitlesPath(): string {
+  return process.env.DSH_TASKFLOW_SESSION_TITLES
+    ?? join(ledgerDirectory(), 'session-titles.json')
+}
+
 async function readLedger(): Promise<TaskflowLedgerSnapshot> {
   const override = process.env.DSH_TASKFLOW_LEDGER
   return override === undefined
@@ -106,6 +136,8 @@ async function readLedger(): Promise<TaskflowLedgerSnapshot> {
 
 /** Remote-only service exposing the attention ledger to the TaskFlow surface. */
 export class TaskflowLedgerGateway extends TypertRemoteService {
+  private readonly claudeSessions: ClaudeSessionMemo = new Map()
+
   constructor(ctx: Context) {
     super(ctx, 'taskflow')
   }
@@ -140,6 +172,27 @@ export class TaskflowLedgerGateway extends TypertRemoteService {
   async reviewPlans(): Promise<TaskflowReviewPlanSnapshot> {
     const observer = await readReviewWatchStatus(reviewWatchStatusPath())
     return readReviewPlanFiles(reviewPlansDirectory(), observer)
+  }
+
+  /**
+   * Look up display titles for the chat sessions that needs-you debts name in
+   * `payload.session`. The host selects the sources; the caller supplies ids
+   * only. Unreadable or malformed sources contribute no titles.
+   * @param request - at most 500 nonempty session ids.
+   * @returns Titles for the requested ids that a source names.
+   */
+  @Remote('sessionTitles')
+  async sessionTitles(request: TaskflowSessionTitlesRequest): Promise<TaskflowSessionTitlesResult> {
+    if (!Array.isArray(request.ids) || request.ids.length > SESSION_TITLE_IDS_MAX
+      || !request.ids.every(id => typeof id === 'string' && id.trim() !== '')) {
+      throw new Error('Invalid TaskFlow sessionTitles request')
+    }
+    const titles = await readSessionTitles(request.ids, {
+      claudeSessionsDir: claudeSessionsDirectory(),
+      codexIndexPath: codexSessionIndexPath(),
+      fallbackPath: sessionTitlesPath(),
+    }, this.claudeSessions)
+    return { titles }
   }
 
   /**

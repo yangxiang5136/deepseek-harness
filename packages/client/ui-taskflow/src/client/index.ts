@@ -4,7 +4,8 @@
  * the `taskflow` Remote namespace — the ledger observable polls `read()`
  * every {@link REFRESH_MS}, alongside read-only review plans, and the popover's checkmark drives the audited
  * `seal()` gate; startup and project changes read `todos()` for discovery
- * and the open tree. The fold
+ * and the open tree; open debts naming a chat look up its title through
+ * `sessionTitles()`. The fold
  * itself is pure client code over the raw JSONL.
  */
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
@@ -15,6 +16,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import { REFRESH_MS } from './fold.ts'
 import { createTaskflowLedger } from './ledger.ts'
 import { createReviewPlans } from './reviewPlans.ts'
+import { createSessionTitles } from './sessionTitles.ts'
 import type { TaskFlowFace, TaskflowSealOutcome } from './face.ts'
 import { TaskFlowBar } from './TaskFlowBar.tsx'
 
@@ -46,6 +48,14 @@ export function apply(ctx: ClientContext): void {
     return answered.value
   })
 
+  const sessionTitles = createSessionTitles(async (ids) => {
+    const answered = await ctx.remote.taskflow.sessionTitles({ ids })
+    if (!answered.ok) throw new Error(`${answered.error.code}: ${answered.error.message}`)
+    return answered.value.titles
+  }, (error) => {
+    console.error('[ui-taskflow] looking up session titles failed:', error)
+  })
+
   ctx.effect(() => {
     const timer = setInterval(() => { ledger.refresh(); reviewPlans.refresh() }, REFRESH_MS)
     return () => { clearInterval(timer) }
@@ -54,6 +64,7 @@ export function apply(ctx: ClientContext): void {
   ctx.on('connection/reset', () => {
     ledger.reset()
     reviewPlans.reset()
+    sessionTitles.reset()
     ledger.refresh()
     reviewPlans.refresh()
   })
@@ -75,11 +86,18 @@ export function apply(ctx: ClientContext): void {
     return answered.value.files
   }
 
+  const requestSessionTitles = (ids: readonly string[]): void => { sessionTitles.ensure(ids) }
+
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
     id: 'taskflow-bar',
     order: 100,
-    inject: (): TaskFlowFace => ({ hooks: { ledger, reviewPlans }, seal, todos }),
+    inject: (): TaskFlowFace => ({
+      hooks: { ledger, reviewPlans, sessionTitles },
+      seal,
+      todos,
+      requestSessionTitles,
+    }),
   }, TaskFlowBar))
 
   ledger.refresh()

@@ -6,6 +6,7 @@ import { fmtAge } from './NeedsYouTray.tsx'
 import { TREE_WINDOW_MS, type ProjectTree, type TreeTask } from './projectTree.ts'
 import type { TaskflowTodoItem } from './todo.ts'
 import type { ReviewPlansState } from './reviewPlans.ts'
+import type { SessionTitlesState } from './sessionTitles.ts'
 import { ReviewPlan } from './ReviewOrderPanel.tsx'
 import { TF_TYPE, type TypeRole } from './typeScale.ts'
 import css from './ProjectPanel.module.css'
@@ -62,6 +63,8 @@ export interface ProjectPanelProps {
   selectedDebt?: NeedsYouItem | null
   /** Validated plan metadata and read health, independent of ledger outcomes. */
   reviewState: ReviewPlansState
+  /** Cached titles of the chats that debts name; the debt card shows its debt's. */
+  sessionTitles: SessionTitlesState
   /** Every open review debt, including multiple reviews sharing a task name. */
   reviewDebts: readonly NeedsYouItem[]
   onCard: (task: string | null) => void
@@ -150,7 +153,8 @@ function edgeClass(task: TreeTask): string {
  * @returns The panel element.
  */
 export function ProjectPanel({
-  tree, events, now, todos, onPin, cardTask, selectedDebt, reviewState, reviewDebts, onCard, onSeal, onClose,
+  tree, events, now, todos, onPin, cardTask, selectedDebt, reviewState, sessionTitles, reviewDebts, onCard, onSeal,
+  onClose,
 }: ProjectPanelProps): ReactElement {
   const [allRows, setAllRows] = useState(false)
   const [showSettled, setShowSettled] = useState(false)
@@ -270,6 +274,7 @@ export function ProjectPanel({
           label={tree.label}
           events={events}
           now={now}
+          sessionTitles={sessionTitles}
           onSeal={(note) => {
             onSeal(cardDebt, note)
             onCard(null)
