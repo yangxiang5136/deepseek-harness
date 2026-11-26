@@ -17,6 +17,7 @@ import { ProjectPanel, type TodoState } from './ProjectPanel.tsx'
 import { buildProjectTree, listProjects, readPins, writePins } from './projectTree.ts'
 import { todosForProject } from './todo.ts'
 import { debtKey, useDeferredSeal } from './deferredSeal.ts'
+import { debtSessionId } from './sessionTitles.ts'
 import { TitlePopover } from './TitlePopover.tsx'
 import { readView, writeView, type TaskflowView } from './viewState.ts'
 import { buildTiers } from './tiers.ts'
@@ -73,10 +74,14 @@ function createMeasure(): TextMeasure {
  * NeedsYouTray.module.css keys its tighter grid height cap on that attribute
  * because the banner's class name is hashed in this module.
  */
-export function TaskFlowBar({ useLedger, useReviewPlans, useMainlines, seal, todos, setMainlines }: TaskFlowBarProps): ReactElement {
+export function TaskFlowBar({
+  useLedger, useReviewPlans, useMainlines, useSessionTitles, seal, todos, setMainlines,
+  requestSessionTitles,
+}: TaskFlowBarProps): ReactElement {
   const ledger = useLedger(s => s)
   const reviewPlans = useReviewPlans(s => s)
   const mainlines = useMainlines(s => s)
+  const sessionTitles = useSessionTitles(s => s)
   const [view, setView] = useState(readView)
   const { collapsed, openProject } = view
   const [now, setNow] = useState(() => Date.now())
@@ -203,7 +208,17 @@ export function TaskFlowBar({ useLedger, useReviewPlans, useMainlines, seal, tod
     updateView({ openProject: project })
     setSelectedDebtKey(openProject === project && selectedDebtKey === key ? null : key)
   }
-  const selectedDebt = model.needsYou.concat(model.parked).find(debt => debtKey(debt) === selectedDebtKey) ?? null
+  const openDebts = model.needsYou.concat(model.parked)
+  const selectedDebt = openDebts.find(debt => debtKey(debt) === selectedDebtKey) ?? null
+  // One batched lookup for every open debt's chat on each refold; the source
+  // skips ids that are cached within its TTL or already requested.
+  useEffect(() => {
+    const ids = model.needsYou.concat(model.parked).flatMap((debt) => {
+      const id = debtSessionId(debt)
+      return id === null ? [] : [id]
+    })
+    if (ids.length > 0) requestSessionTitles([...new Set(ids)].sort())
+  }, [model, requestSessionTitles])
 
   // Bar-owned so collapsing the tray or the whole bar never drops a seal
   // that is still inside its 撤销 window.
@@ -321,6 +336,7 @@ export function TaskFlowBar({ useLedger, useReviewPlans, useMainlines, seal, tod
         events={ledger.events}
         now={now}
         sealer={sealer}
+        sessionTitles={sessionTitles}
         candidates={candidatesFor}
         onSetMainlines={setMainlines}
         total={model.needsYou.length}
@@ -338,6 +354,7 @@ export function TaskFlowBar({ useLedger, useReviewPlans, useMainlines, seal, tod
             }}
             cardTask={selectedDebt?.task ?? null}
             selectedDebt={selectedDebt}
+            sessionTitles={sessionTitles}
             reviewState={reviewPlans}
             reviewDebts={model.needsYou}
             onCard={(task) => {

@@ -4,6 +4,7 @@ import type { TaskflowMainline, TaskflowSealRequest, TaskflowTodoFile } from '@d
 import type { MainlinesSource } from './mainlines.ts'
 import type { TaskflowLedgerSource } from './ledger.ts'
 import type { ReviewPlansSource } from './reviewPlans.ts'
+import type { SessionTitlesSource } from './sessionTitles.ts'
 
 /** Business outcome of a seal click; wire and host refusals both land here. */
 export interface TaskflowSealOutcome {
@@ -22,6 +23,8 @@ export interface TaskFlowFace {
     reviewPlans: ReviewPlansSource
     /** The human's pinned mainlines, shared through the bus. */
     mainlines: MainlinesSource
+    /** Cached titles of the chats that open debts name in `payload.session`. */
+    sessionTitles: SessionTitlesSource
   }
   /**
    * Seal (收口) one pinned open debt through the host gate.
@@ -41,4 +44,10 @@ export interface TaskFlowFace {
    * @returns Null when saved, else a user-readable refusal.
    */
   setMainlines(project: string, mainlines: TaskflowMainline[]): Promise<string | null>
+  /**
+   * Look up the titles of these sessions unless cached or already requested;
+   * answers arrive through the `sessionTitles` hook.
+   * @param ids - session ids of the open debts.
+   */
+  requestSessionTitles(ids: readonly string[]): void
 }

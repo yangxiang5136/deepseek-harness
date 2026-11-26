@@ -12,6 +12,8 @@ import { TaskFlowBar, type TaskFlowBarProps } from '../src/client/TaskFlowBar.ts
 import type { TaskFlowFace } from '../src/client/face.ts'
 import type { ReviewPlansState } from '../src/client/reviewPlans.ts'
 const useReviewPlans = (select: (state: ReviewPlansState) => unknown) => select({ plans: [], read: true, observer: null })
+import type { SessionTitlesState } from '../src/client/sessionTitles.ts'
+const useSessionTitles = (select: (state: SessionTitlesState) => unknown) => select({ titles: new Map() })
 import type { TaskflowLedgerState } from '../src/client/ledger.ts'
 import { buildModel, IDLE_PAUSE_MS, parseLedgerText } from '../src/client/fold.ts'
 import {
@@ -294,7 +296,7 @@ describe('project panel on its own', () => {
     const onPin = vi.fn()
     const empty = treeOf([])
     const { unmount } = render(
-      <ProjectPanel reviewState={{ plans: [], read: true, observer: null }} reviewDebts={[]} tree={empty} events={[]} now={NOW} todos={{ status: 'ready', items: [] }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />,
+      <ProjectPanel reviewState={{ plans: [], read: true, observer: null }} sessionTitles={{ titles: new Map() }} reviewDebts={[]} tree={empty} events={[]} now={NOW} todos={{ status: 'ready', items: [] }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />,
     )
     expect(screen.queryByRole('button', { name: /设为主线/ })).toBeNull()
     expect(screen.getByText('还没有任务')).toBeTruthy()
@@ -304,7 +306,7 @@ describe('project panel on its own', () => {
       ev('start', 30, '主线'), ev('start', 20, '放掉的'), ev('drop', 10, '放掉的'),
       debt(5, '一个名字特别特别长以至于要被截断的分支任务', 'review'),
     ], '主线')
-    render(<ProjectPanel reviewState={{ plans: [], read: true, observer: null }} reviewDebts={[]} tree={tree} events={[]} now={NOW} todos={{ status: 'loading' }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />)
+    render(<ProjectPanel reviewState={{ plans: [], read: true, observer: null }} sessionTitles={{ titles: new Map() }} reviewDebts={[]} tree={tree} events={[]} now={NOW} todos={{ status: 'loading' }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />)
     fireEvent.click(screen.getByText(/已了结 1 条（完成 0）/))
     expect(screen.getByText(/✕ 放掉的/)).toBeTruthy()
     expect(screen.getByText(/^一个名字特别.*…$/)).toBeTruthy()
@@ -316,7 +318,7 @@ describe('project panel in the bar', () => {
     const state: TaskflowLedgerState = { events: parseLedgerText(lines.join('\n')), read: true, exists: true }
     const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
     const seal = vi.fn()
-    const props = { useLedger, useReviewPlans, seal, todos } as unknown as TaskFlowBarProps
+    const props = { useLedger, useReviewPlans, useSessionTitles, seal, todos, requestSessionTitles: vi.fn() } as unknown as TaskFlowBarProps
     const view = render(<TaskFlowBar {...props} />)
     fireEvent.click(view.container.firstElementChild as Element)
     return view

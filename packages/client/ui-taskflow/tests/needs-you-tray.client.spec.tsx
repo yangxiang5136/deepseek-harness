@@ -15,6 +15,8 @@ import { SEAL_UNDO_MS, useDeferredSeal } from '../src/client/deferredSeal.ts'
 import type { TaskFlowFace } from '../src/client/face.ts'
 import type { ReviewPlansState } from '../src/client/reviewPlans.ts'
 const useReviewPlans = (select: (state: ReviewPlansState) => unknown) => select({ plans: [], read: true, observer: null })
+import type { SessionTitlesState } from '../src/client/sessionTitles.ts'
+const useSessionTitles = (select: (state: SessionTitlesState) => unknown) => select({ titles: new Map() })
 import type { TaskflowLedgerState } from '../src/client/ledger.ts'
 import { groupDebtsByProject, parseLedgerText, type NeedsYouItem } from '../src/client/fold.ts'
 
@@ -31,7 +33,7 @@ function renderBar(lines: string[], seal: TaskFlowFace['seal']) {
   const state: TaskflowLedgerState = { events: parseLedgerText(lines.join('\n')), read: true, exists: true }
   const useLedger = (<R,>(selector: (s: TaskflowLedgerState) => R): R => selector(state))
   const todos = vi.fn().mockResolvedValue([])
-  const props = { useLedger, useReviewPlans, seal, todos } as unknown as TaskFlowBarProps
+  const props = { useLedger, useReviewPlans, useSessionTitles, seal, todos, requestSessionTitles: vi.fn() } as unknown as TaskFlowBarProps
   const view = render(<TaskFlowBar {...props} />)
   if (screen.queryByRole('combobox', { name: '项目' }) === null) fireEvent.click(screen.getByText('空闲'))
   return view

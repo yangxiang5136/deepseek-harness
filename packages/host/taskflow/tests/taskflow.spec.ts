@@ -522,6 +522,35 @@ describe('park debts', () => {
   })
 })
 
+describe('needs-you origin session', () => {
+  it('accepts a schema-v2 needs-you naming the chat it came from', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'taskflow-session-'))
+    const path = join(dir, 'events-2026-11.jsonl')
+    const debt = line('needs-you', T0, {
+      schema_version: 2,
+      event_id: DEBT_ID,
+      payload: { kind: 'review', ref: 'branch-x', note: '看一下', session: 'local_5b1c7a2e-3d4f-4a6b-9c8d-0e1f2a3b4c5d' },
+    })
+    await writePrivateLedger(path, `${debt}\n`)
+    expect((await readMonthlyLedgers(dir)).text).toBe(`${debt}\n`)
+  })
+
+  it('rejects an empty session and still rejects unrelated payload keys', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'taskflow-session-invalid-'))
+    const path = join(dir, 'override.jsonl')
+    for (const payload of [
+      { kind: 'review', ref: 'branch-x', session: '' },
+      { kind: 'review', ref: 'branch-x', session: '   ' },
+      { kind: 'review', ref: 'branch-x', session: 'local_a\nlocal_b' },
+      { kind: 'review', ref: 'branch-x', thread: 'local_a' },
+      { kind: 'review', ref: 'branch-x', session: 'local_a', engine: 'codex' },
+    ]) {
+      await writePrivateLedger(path, `${line('needs-you', T0, { schema_version: 2, event_id: DEBT_ID, payload })}\n`)
+      await expect(readLedgerFile(path)).rejects.toThrow(/Invalid TaskFlow (?:v2|needs-you) payload/)
+    }
+  })
+})
+
 describe('shared ledger lock', () => {
   it('writes the Python-compatible owner lease and times out on a live owner', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'taskflow-lock-'))
@@ -657,6 +686,7 @@ describe('TaskflowLedgerGateway', () => {
       { method: 'read', invocation: { kind: 'direct' } },
       { method: 'todos', invocation: { kind: 'direct' } },
       { method: 'reviewPlans', invocation: { kind: 'direct' } },
+      { method: 'sessionTitles', invocation: { kind: 'direct' } },
       { method: 'seal', invocation: { kind: 'direct' } },
       { method: 'confirmPhase', invocation: { kind: 'direct' } },
     ])

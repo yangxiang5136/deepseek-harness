@@ -5,6 +5,7 @@ import { debtKey, shownDebts, type DeferredSeal } from './deferredSeal.ts'
 import { IDLE_PAUSE_MS, type AttentionEvent, type NeedsYouItem } from './fold.ts'
 import { fmtStamp } from './handoff.ts'
 import { fmtAge } from './NeedsYouTray.tsx'
+import type { SessionTitlesState } from './sessionTitles.ts'
 import { TIER_ROWS, type MainlineView, type ProjectTiers, type TaskGroup } from './tiers.ts'
 import css from './TwoPane.module.css'
 
@@ -25,6 +26,8 @@ export interface TwoPaneProps {
   events: readonly AttentionEvent[]
   now: number
   sealer: DeferredSeal
+  /** Cached titles of the chats that debts name; the debt card shows its debt's. */
+  sessionTitles: SessionTitlesState
   /** Tasks offered when pinning, by display project (most active first). */
   candidates: (label: string) => readonly string[]
   /** Replace one project's pins; resolves to a message when the host refuses. */
@@ -71,7 +74,8 @@ function noteOf(debt: NeedsYouItem): string {
  * @returns The two-pane element.
  */
 export function TwoPane({
-  tiers, openProject, onOpenProject, events, now, sealer, candidates, onSetMainlines, total, legacy, all, pinsError,
+  tiers, openProject, onOpenProject, events, now, sealer, sessionTitles, candidates, onSetMainlines, total, legacy, all,
+  pinsError,
 }: TwoPaneProps): ReactElement {
   const [open, setOpen] = useState<string | null>(null)
   const [more, setMore] = useState(false)
@@ -332,6 +336,7 @@ export function TwoPane({
             {cardDebt !== null && (
               <DebtCard
                 key={debtKey(cardDebt)} debt={cardDebt} label={label} events={events} now={now}
+                sessionTitles={sessionTitles}
                 onSeal={(note) => { sealer.queue(cardDebt, note); setCardKey(null) }}
                 onClose={() => { setCardKey(null) }}
               />

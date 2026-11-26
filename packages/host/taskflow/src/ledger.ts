@@ -133,7 +133,8 @@ function assertV2Resolver(record: Record<string, unknown>, path: string, line: n
     return
   }
   if (event === 'needs-you') {
-    if (!hasOnly(payload, new Set(['note', 'kind', 'ref']))
+    // `session` names the originating chat; the loop above requires a nonempty single line.
+    if (!hasOnly(payload, new Set(['note', 'kind', 'ref', 'session']))
       || !NEEDS_YOU_KINDS.has(payload.kind as string) || !isNonemptyString(payload.ref)) {
       throw new Error(`Invalid TaskFlow needs-you payload at ${path}:${line}`)
     }

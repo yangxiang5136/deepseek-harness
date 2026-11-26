@@ -35,8 +35,8 @@ export interface TaskflowSealRequest {
   note?: string
 }
 
-/** Exact debt selected by a caller from a verified native human completion statement. */
-export interface TaskflowPhaseConfirmationRequest {
+/** Exact debt and quoted transcript record shared by every confirmation surface. */
+export interface TaskflowPhaseConfirmationBase {
   /** Exact project string of the open needs-you. */
   project: string
   /** Exact task phrase of the open needs-you. */
@@ -45,15 +45,34 @@ export interface TaskflowPhaseConfirmationRequest {
   resolvesTs: string
   /** Canonical identity when the target debt has an event ID. */
   resolvesEventId?: string
-  /** Native interactive Codex thread UUID. */
-  threadId: string
-  /** Absolute transcript path under the host's Codex sessions or archived_sessions. */
+  /** Absolute transcript path under the surface's host-owned root. */
   sourcePath: string
-  /** Byte offset of the exact complete human response_item record. */
+  /** Byte offset where the complete human message record starts. */
   byteOffset: number
   /** One verbatim user quotation, at most 280 characters; also the seal's note. */
   quote: string
 }
+
+/** Confirmation quoted from a native interactive Codex thread. */
+export interface TaskflowCodexPhaseConfirmation extends TaskflowPhaseConfirmationBase {
+  /** Codex surface; requests written before surface selection omit it. */
+  surface?: 'codex'
+  /** Native interactive Codex thread UUID. */
+  threadId: string
+}
+
+/** Confirmation quoted from a main Claude Code session transcript. */
+export interface TaskflowClaudeCodePhaseConfirmation extends TaskflowPhaseConfirmationBase {
+  /** Claude Code surface. */
+  surface: 'claude-code'
+  /** Claude Code session UUID; the transcript file is `<sessionId>.jsonl`. */
+  sessionId: string
+}
+
+/** Exact debt selected by a caller from a verified native human completion statement. */
+export type TaskflowPhaseConfirmationRequest =
+  | TaskflowCodexPhaseConfirmation
+  | TaskflowClaudeCodePhaseConfirmation
 
 /** Outcome of a seal attempt; never throws for business outcomes. */
 export interface TaskflowSealResult {
@@ -63,6 +82,31 @@ export interface TaskflowSealResult {
   reason: 'no-open-needs-you' | 'ledger-missing' | 'ledger-busy' | 'invalid-request' | null
   /** The appended JSON line on success; null otherwise. */
   line: string | null
+}
+
+/** Chat tool whose local store names a session. */
+export type TaskflowSessionTool = 'claude-code' | 'codex'
+
+/** Display title of one chat session named by a needs-you `payload.session`. */
+export interface TaskflowSessionTitle {
+  /** Tool whose store or fallback entry names the session. */
+  tool: TaskflowSessionTool
+  /** Single-line title with whitespace runs collapsed, at most 200 characters. */
+  title: string
+  /** The source's archive flag; omitted when the source records none. */
+  archived?: boolean
+}
+
+/** Session ids whose titles the client displays. */
+export interface TaskflowSessionTitlesRequest {
+  /** At most 500 non-empty ids; ids longer than 256 characters resolve to nothing. */
+  ids: string[]
+}
+
+/** Titles for the requested ids that a host-selected source names. */
+export interface TaskflowSessionTitlesResult {
+  /** Requested id to its title; ids that no source names are absent. */
+  titles: Record<string, TaskflowSessionTitle>
 }
 
 /** One project todo file from the bus todo directory, raw. */

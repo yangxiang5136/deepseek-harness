@@ -55,7 +55,7 @@ async function mountPlugin(text: string) {
     ok: true,
     value: { sealed: false, reason: 'no-open-needs-you', line: null },
   })
-  ctx.provide('remote.taskflow', { read, todos, seal, reviewPlans: vi.fn().mockResolvedValue({ ok: true, value: { dir: '/fixture/reviews', exists: true, observer: null, files: [] } }) })
+  ctx.provide('remote.taskflow', { read, todos, seal, sessionTitles: vi.fn().mockResolvedValue({ ok: true, value: { titles: {} } }), reviewPlans: vi.fn().mockResolvedValue({ ok: true, value: { dir: '/fixture/reviews', exists: true, observer: null, files: [] } }) })
   await act(async () => { await ctx!.plugin({ inject, apply }).await() })
   render(<>{slots.renderSlot('root', {})}</>)
   return { read, todos, seal }

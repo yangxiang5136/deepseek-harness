@@ -13,7 +13,8 @@ export type { TypertClientRemote as ClientRemote } from '@deepseek-ai/dsh-typert
 export type { PluginInventorySnapshot } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 export type {
   TaskflowLedgerSnapshot, TaskflowMainline, TaskflowMainlines, TaskflowMainlinesRequest, TaskflowMainlinesResult,
-  TaskflowSealRequest, TaskflowSealResult, TaskflowTodoFile, TaskflowTodoSnapshot,
+  TaskflowSealRequest, TaskflowSealResult, TaskflowSessionTitle, TaskflowSessionTitlesRequest,
+  TaskflowSessionTitlesResult, TaskflowSessionTool, TaskflowTodoFile, TaskflowTodoSnapshot,
 } from '@deepseek-ai/dsh-host-taskflow/types'
 export type {} from '@deepseek-ai/dsh-commands/remote'
 export type {} from '@deepseek-ai/dsh-goal/remote'
