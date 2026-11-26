@@ -150,15 +150,48 @@ describe('Claude desktop session store', () => {
     expect(memo.size).toBe(0)
   })
 
-  it('reads at most 2000 store files', async () => {
+  it('scans at most 2000 store files but reads a desktop id from its own file in any store size', async () => {
     const src = await sources()
-    for (let i = 0; i <= 2000; i += 1) {
+    const paths: string[] = []
+    for (let i = 0; i <= 2001; i += 1) {
       const name = `local_${String(i).padStart(4, '0')}`
-      await session(src.store, name, { sessionId: name, cliSessionId: `cli-${i}`, title: `第${i}个` })
+      paths.push(await session(src.store, name, { sessionId: name, cliSessionId: `cli-${i}`, title: `第${i}个` }))
     }
-    expect(await readSessionTitles(['cli-1999', 'cli-2000', 'local_2000'], src, new Map())).toEqual({
+    const storeOpens = (): number => paths.reduce((count, path) => count + opened(path), 0)
+    vi.mocked(fs.open).mockClear()
+    expect(await readSessionTitles(['cli-1999', 'cli-2000'], src, new Map())).toEqual({
       'cli-1999': { tool: 'claude-code', title: '第1999个' },
     })
+    expect(storeOpens()).toBe(2000)
+    expect(opened(paths[2000]!)).toBe(0)
+    vi.mocked(fs.open).mockClear()
+    expect(await readSessionTitles(['local_0000', 'local_2001'], src, new Map())).toEqual({
+      local_0000: { tool: 'claude-code', title: '第0个' },
+      local_2001: { tool: 'claude-code', title: '第2001个' },
+    })
+    expect(storeOpens()).toBe(2)
+    // Files read for desktop ids do not count against the scan cap.
+    vi.mocked(fs.open).mockClear()
+    expect(await readSessionTitles(['local_2001', 'cli-1999', 'cli-2000'], src, new Map())).toEqual({
+      local_2001: { tool: 'claude-code', title: '第2001个' },
+      'cli-1999': { tool: 'claude-code', title: '第1999个' },
+    })
+    expect(storeOpens()).toBe(2001)
+  })
+
+  it('stops scanning once every id resolves', async () => {
+    const src = await sources()
+    const paths: string[] = []
+    for (let i = 0; i < 10; i += 1) {
+      const name = `local_${i}`
+      paths.push(await session(src.store, name, { sessionId: name, cliSessionId: `cli-${i}`, title: `第${i}个` }))
+    }
+    vi.mocked(fs.open).mockClear()
+    expect(await readSessionTitles(['cli-3', 'local_7'], src, new Map())).toEqual({
+      'cli-3': { tool: 'claude-code', title: '第3个' },
+      local_7: { tool: 'claude-code', title: '第7个' },
+    })
+    expect(paths.map(opened)).toEqual([1, 1, 1, 1, 0, 0, 0, 1, 0, 0])
   })
 
   it.skipIf(process.platform === 'win32')('lists sibling directories when one cannot be read', async () => {
@@ -179,7 +212,7 @@ describe('Claude desktop session store', () => {
 })
 
 describe('Codex session index', () => {
-  it('keeps the entry with the latest updated_at and falls back to the later line', async () => {
+  it('keeps the entry with the latest parsable updated_at and falls back to the later line', async () => {
     const src = await sources()
     await fs.writeFile(src.codexIndexPath, codexLines([
       { id: 'thread-a', thread_name: '旧名字', updated_at: '2026-11-20T10:00:00Z' },
@@ -204,8 +237,33 @@ describe('Codex session index', () => {
       .toEqual({
         'thread-a': { tool: 'codex', title: '新名字' },
         'thread-b': { tool: 'codex', title: '同时间后写' },
-        'thread-c': { tool: 'codex', title: '时间坏了' },
+        'thread-c': { tool: 'codex', title: '有时间' },
         'thread-d': { tool: 'codex', title: '无时间后写' },
+      })
+  })
+
+  it('never lets a missing or unparsable updated_at reset the ordering', async () => {
+    const src = await sources()
+    await fs.writeFile(src.codexIndexPath, codexLines([
+      { id: 'newest-first', thread_name: '最新', updated_at: '2026-11-25T00:00:00Z' },
+      { id: 'newest-first', thread_name: '没有时间' },
+      { id: 'newest-first', thread_name: '较旧', updated_at: '2026-11-01T00:00:00Z' },
+      { id: 'broken-between', thread_name: '最新', updated_at: '2026-11-21T10:00:00Z' },
+      { id: 'broken-between', thread_name: '时间坏了', updated_at: 'x' },
+      { id: 'broken-between', thread_name: '最旧', updated_at: '2026-11-01T10:00:00Z' },
+      { id: 'broken-first', thread_name: '时间坏了', updated_at: 'x' },
+      { id: 'broken-first', thread_name: '较旧', updated_at: '2026-11-01T10:00:00Z' },
+      { id: 'broken-first', thread_name: '没有时间' },
+      { id: 'oldest-first', thread_name: '最旧', updated_at: '2026-11-01T10:00:00Z' },
+      { id: 'oldest-first', thread_name: '时间坏了', updated_at: 'x' },
+      { id: 'oldest-first', thread_name: '最新', updated_at: '2026-11-21T10:00:00Z' },
+    ]))
+    expect(await readSessionTitles(['newest-first', 'broken-between', 'broken-first', 'oldest-first'], src, new Map()))
+      .toEqual({
+        'newest-first': { tool: 'codex', title: '最新' },
+        'broken-between': { tool: 'codex', title: '最新' },
+        'broken-first': { tool: 'codex', title: '较旧' },
+        'oldest-first': { tool: 'codex', title: '最新' },
       })
   })
 

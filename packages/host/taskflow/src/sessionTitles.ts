@@ -22,7 +22,8 @@ export const SESSION_ID_MAX = 256
 /** Longest returned title in code points, after whitespace normalization. */
 export const SESSION_TITLE_MAX = 200
 
-const CLAUDE_FILES_MAX = 2000
+const CLAUDE_LISTING_MAX = 50_000
+const CLAUDE_SCAN_MAX = 2000
 const CLAUDE_FILE_BYTES_MAX = 2 * 1024 * 1024
 const CODEX_INDEX_BYTES_MAX = 20 * 1024 * 1024
 const FALLBACK_BYTES_MAX = 4 * 1024 * 1024
@@ -96,7 +97,7 @@ async function listClaudeFiles(root: string): Promise<string[]> {
       }
     }
   }
-  return files.sort().slice(0, CLAUDE_FILES_MAX)
+  return files.sort().slice(0, CLAUDE_LISTING_MAX)
 }
 
 function claudeEntry(value: unknown, info: Stats): ClaudeSessionEntry | null {
@@ -151,7 +152,7 @@ async function fromClaude(
   }
   const byName = new Map<string, string>()
   for (const path of files.toReversed()) byName.set(basename(path), path)
-  const wantedIds = new Set(wanted)
+  const pending = new Set(wanted.filter(id => !found.has(id)))
   const visited = new Set<string>()
   const visit = async (path: string): Promise<void> => {
     visited.add(path)
@@ -162,17 +163,21 @@ async function fromClaude(
     }
     memo.set(path, entry)
     for (const id of entry.ids) {
-      if (wantedIds.has(id) && !found.has(id)) found.set(id, entry.title)
+      if (pending.delete(id)) found.set(id, entry.title)
     }
   }
-  // A desktop id names its own file, so it resolves without scanning the store.
+  // A desktop id names its own file, so it resolves from the full listing without scanning the store.
   for (const id of wanted) {
     const path = byName.get(`${id}.json`)
-    if (path !== undefined) await visit(path)
+    if (path !== undefined && !visited.has(path)) await visit(path)
   }
-  if (wanted.every(id => found.has(id))) return
+  // Only the scan for ids that name no file of their own is capped.
+  let budget = CLAUDE_SCAN_MAX
   for (const path of files) {
-    if (!visited.has(path)) await visit(path)
+    if (pending.size === 0 || budget === 0) return
+    if (visited.has(path)) continue
+    budget -= 1
+    await visit(path)
   }
 }
 
@@ -211,8 +216,11 @@ async function fromCodex(
     if (typeof id !== 'string' || title === null || !wantedIds.has(id)) continue
     const at = typeof row?.updated_at === 'string' ? Date.parse(row.updated_at) : Number.NaN
     const previous = latest.get(id)
-    // Equal or unparsable timestamps fall back to file order: the later line wins.
-    if (previous === undefined || !(at < previous.at)) latest.set(id, { at, title })
+    // A parsable timestamp outranks a missing or unparsable one; equal timestamps, and lines
+    // that both lack one, fall back to file order: the later line wins.
+    if (previous === undefined || Number.isNaN(previous.at) || (!Number.isNaN(at) && at >= previous.at)) {
+      latest.set(id, { at, title })
+    }
   }
   for (const [id, entry] of latest) {
     if (!found.has(id)) found.set(id, { tool: 'codex', title: entry.title })
@@ -261,11 +269,13 @@ async function settle(lookup: () => Promise<void>): Promise<void> {
  * Resolve display titles for chat session ids. Sources answer in order (the
  * Claude desktop store, then the Codex index, then the fallback file), each
  * only for ids still unresolved, and a source is skipped once every id is
- * resolved. A Claude desktop id (`local_<uuid>`) is read from its own file
- * first; any other unresolved id scans at most 2000 store files of at most
- * 2 MiB each, through `memo`. The Codex index (at most 20 MiB) keeps each id's
- * entry with the latest `updated_at`. The fallback file (at most 4 MiB) must
- * match its schema exactly; invalid entries are ignored.
+ * resolved. The Claude store lists at most 50,000 session files and skips
+ * files over 2 MiB. A Claude desktop id (`local_<uuid>`) is read from its own
+ * file first; any other unresolved id scans at most 2000 further files through
+ * `memo`, stopping once every id resolves. The Codex index (at most 20 MiB)
+ * keeps each id's entry with the latest parsable `updated_at`, which outranks
+ * a missing or unparsable one; ties go to the later line. The fallback file
+ * (at most 4 MiB) must match its schema exactly; invalid entries are ignored.
  * @param ids - requested ids; only the first 500 distinct ids of at most 256 characters are resolved.
  * @param sources - host-selected source locations.
  * @param memo - the caller's Claude session memo, updated in place.
