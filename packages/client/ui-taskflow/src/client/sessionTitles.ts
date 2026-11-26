@@ -1,6 +1,6 @@
 /**
- * Chat-session titles for the needs-you debts that name their originating
- * chat in `payload.session`. The source batches lookups through the
+ * Chat-session titles for the origins and destinations of needs-you debts.
+ * The source batches lookups through the
  * `taskflow.sessionTitles` Remote, caches each settled id for
  * {@link SESSION_TITLE_TTL_MS}, and settles every id of a failed batch as
  * unresolved, so a lookup failure changes display text and never rendering.
@@ -126,12 +126,10 @@ export function debtSessionId(debt: NeedsYouItem): string | null {
   return typeof session === 'string' && session.trim() !== '' ? session : null
 }
 
-/** One label-value fact row naming where a debt came from. */
-export interface SessionDestination {
-  /** 去处 when the title is known, 来源会话 otherwise. */
+interface DebtChatFact {
   label: '去处' | '来源会话'
-  /** Tool and title, or a short id with the lookup status. */
   value: string
+  title: string
 }
 
 const TOOL_LABEL: Readonly<Record<SessionTitle['tool'], string>> = {
@@ -139,20 +137,57 @@ const TOOL_LABEL: Readonly<Record<SessionTitle['tool'], string>> = {
   'codex': 'Codex',
 }
 
-/**
- * Describe a debt's originating chat from the cached lookups.
- * @param sessionId - the debt's `payload.session`.
- * @param state - the current title cache.
- * @returns The fact row: tool and title when resolved; otherwise the first
- *   eight id characters after any `local_` prefix, marked as still loading or
- *   as not found (no source names it, or the lookup failed).
- */
-export function sessionDestination(sessionId: string, state: SessionTitlesState): SessionDestination {
+function chatLabel(sessionId: string, state: SessionTitlesState, shortId = sessionId.replace(/^local_/, '')): string {
   const lookup = state.titles.get(sessionId)
   if (lookup !== undefined && lookup !== null) {
     const archived = lookup.archived === true ? '（已归档）' : ''
-    return { label: '去处', value: `${TOOL_LABEL[lookup.tool]} ·「${lookup.title}」${archived}` }
+    return `${TOOL_LABEL[lookup.tool]} ·「${lookup.title}」${archived}`
   }
-  const short = sessionId.replace(/^local_/, '').slice(0, 8)
-  return { label: '来源会话', value: `${short}（${lookup === undefined ? '正在查标题' : '标题查不到'}）` }
+  return `${shortId.slice(0, 8)}（${lookup === undefined ? '正在查标题' : '标题查不到'}）`
+}
+
+const CLAUDE_DESTINATION = /^local_\S+$/
+const CODEX_DESTINATION = /^codex:\/\/threads\/(\S+)$/
+
+/**
+ * Extract the chat ID used for a destination's title lookup.
+ * @param to - raw todo-decide destination, if present.
+ * @returns The Claude desktop ID or bare Codex thread ID, if named.
+ */
+export function destinationSessionId(to: string | undefined): string | undefined {
+  if (to === undefined) return undefined
+  return CLAUDE_DESTINATION.test(to) ? to : CODEX_DESTINATION.exec(to)?.[1]
+}
+
+function destinationLabel(to: string, sessionId: string | undefined, state: SessionTitlesState): string {
+  if (sessionId !== undefined) {
+    return chatLabel(sessionId, state, to === sessionId ? undefined : sessionId)
+  }
+  if (!to.startsWith('新开:')) return to
+  const date = to.slice('新开:'.length)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const parsed = new Date(`${date}T00:00:00Z`)
+    if (!isNaN(parsed.getTime()) && parsed.toISOString().startsWith(date)) {
+      return `新开一个聊天（交接段在 ${date.slice(5)} 的回复和简报里）`
+    }
+  }
+  return '新开一个聊天'
+}
+
+/**
+ * Describe the destination and originating chat on a debt card.
+ * @param debt - the open needs-you debt.
+ * @param to - the destination from the row matching this debt's exact event ID.
+ * @param state - the current title cache.
+ * @returns Destination first, then origin if it names a different chat, with full values for tooltips.
+ */
+export function debtChatFacts(debt: NeedsYouItem, to: string | undefined, state: SessionTitlesState): DebtChatFact[] {
+  const destinationId = destinationSessionId(to)
+  const originId = debtSessionId(debt)
+  const rows: DebtChatFact[] = []
+  if (to !== undefined) rows.push({ label: '去处', value: destinationLabel(to, destinationId, state), title: to })
+  if (originId !== null && originId !== destinationId) {
+    rows.push({ label: '来源会话', value: chatLabel(originId, state), title: originId })
+  }
+  return rows
 }

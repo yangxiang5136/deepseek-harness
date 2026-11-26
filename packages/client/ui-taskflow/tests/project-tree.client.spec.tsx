@@ -296,7 +296,7 @@ describe('project panel on its own', () => {
     const onPin = vi.fn()
     const empty = treeOf([])
     const { unmount } = render(
-      <ProjectPanel reviewState={{ plans: [], read: true, observer: null }} sessionTitles={{ titles: new Map() }} reviewDebts={[]} tree={empty} events={[]} now={NOW} todos={{ status: 'ready', items: [] }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />,
+      <ProjectPanel reviewState={{ plans: [], read: true, observer: null }} sessionTitles={{ titles: new Map() }} destinations={new Map()} reviewDebts={[]} tree={empty} events={[]} now={NOW} todos={{ status: 'ready', items: [] }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />,
     )
     expect(screen.queryByRole('button', { name: /设为主线/ })).toBeNull()
     expect(screen.getByText('还没有任务')).toBeTruthy()
@@ -306,7 +306,7 @@ describe('project panel on its own', () => {
       ev('start', 30, '主线'), ev('start', 20, '放掉的'), ev('drop', 10, '放掉的'),
       debt(5, '一个名字特别特别长以至于要被截断的分支任务', 'review'),
     ], '主线')
-    render(<ProjectPanel reviewState={{ plans: [], read: true, observer: null }} sessionTitles={{ titles: new Map() }} reviewDebts={[]} tree={tree} events={[]} now={NOW} todos={{ status: 'loading' }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />)
+    render(<ProjectPanel reviewState={{ plans: [], read: true, observer: null }} sessionTitles={{ titles: new Map() }} destinations={new Map()} reviewDebts={[]} tree={tree} events={[]} now={NOW} todos={{ status: 'loading' }} onPin={onPin} cardTask={null} onCard={vi.fn()} onSeal={vi.fn()} onClose={vi.fn()} />)
     fireEvent.click(screen.getByText(/已了结 1 条（完成 0）/))
     expect(screen.getByText(/✕ 放掉的/)).toBeTruthy()
     expect(screen.getByText(/^一个名字特别.*…$/)).toBeTruthy()
